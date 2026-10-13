@@ -208,6 +208,63 @@ class EmployeeSerializer(serializers.ModelSerializer):
             'school': {'read_only': True}
         }
 
+    def validate(self, attrs):
+        request = self.context.get('request')
+        actor = request.user if request and request.user.is_authenticated else None
+
+        linked_user = attrs.get(
+            'user',
+            self.instance.user if self.instance else None
+        )
+
+        if not linked_user:
+            return attrs
+
+        if linked_user.role != 'employee':
+            raise serializers.ValidationError({
+                'user': 'Only employee accounts can be linked to an employee profile.'
+            })
+
+        if actor and actor.role == 'platform_owner':
+            if self.instance:
+                target_school_id = self.instance.school_id
+            else:
+                target_school_id = self.initial_data.get('school')
+
+            try:
+                target_school_id = int(target_school_id)
+            except (TypeError, ValueError):
+                raise serializers.ValidationError({
+                    'school': 'A valid school is required.'
+                })
+        elif actor:
+            target_school_id = actor.school_id
+
+            if not target_school_id:
+                raise serializers.ValidationError({
+                    'school': 'User is not assigned to a school.'
+                })
+        else:
+            raise serializers.ValidationError({
+                'user': 'An authenticated user is required.'
+            })
+
+        if linked_user.school_id != target_school_id:
+            raise serializers.ValidationError({
+                'user': 'Employee account must belong to the same school.'
+            })
+
+        existing = Employee.objects.filter(user=linked_user)
+        if self.instance:
+            existing = existing.exclude(pk=self.instance.pk)
+
+        if existing.exists():
+            raise serializers.ValidationError({
+                'user': 'This account is already linked to an employee profile.'
+            })
+
+        return attrs
+
     def create(self, validated_data):
         user = self.context['request'].user
 

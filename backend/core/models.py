@@ -56,6 +56,13 @@ class Student(models.Model):
 
 
 class Employee(models.Model):
+    user = models.OneToOneField(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="employee_profile",
+    )
     name = models.CharField(max_length=200)
     email = models.EmailField(blank=True)
     phone = models.CharField(max_length=30, blank=True)

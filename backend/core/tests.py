@@ -1103,3 +1103,98 @@ def test_employee_can_list_only_own_school_exams(self):
             response.status_code,
             status.HTTP_403_FORBIDDEN,
         )
+
+def test_school_admin_can_link_own_employee_login_to_profile(self):
+        self.client.force_authenticate(user=self.school_admin)
+
+        response = self.client.post(
+            "/api/employees/",
+            {
+                "name": "Linked Employee",
+                "position": "Teacher",
+                "user": self.employee.id,
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        profile = Employee.objects.get(name="Linked Employee")
+        self.assertEqual(profile.school_id, self.school_a.id)
+        self.assertEqual(profile.user_id, self.employee.id)
+
+    def test_school_admin_cannot_link_other_school_employee_login(self):
+        other_employee = User.objects.create_user(
+            username="employee_account_school_b",
+            password="EmployeePass123!",
+            role="employee",
+            school=self.school_b,
+        )
+        self.client.force_authenticate(user=self.school_admin)
+
+        response = self.client.post(
+            "/api/employees/",
+            {
+                "name": "Invalid Linked Employee",
+                "user": other_employee.id,
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_school_admin_cannot_link_admin_login_to_employee_profile(self):
+        self.client.force_authenticate(user=self.school_admin)
+
+        response = self.client.post(
+            "/api/employees/",
+            {
+                "name": "Invalid Admin Profile",
+                "user": self.school_admin.id,
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_platform_owner_can_link_employee_login_to_profile(self):
+        other_employee = User.objects.create_user(
+            username="platform_link_employee",
+            password="EmployeePass123!",
+            role="employee",
+            school=self.school_b,
+        )
+        self.client.force_authenticate(user=self.platform_owner)
+
+        response = self.client.post(
+            "/api/employees/",
+            {
+                "name": "Platform Linked Employee",
+                "school": self.school_b.id,
+                "user": other_employee.id,
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        profile = Employee.objects.get(name="Platform Linked Employee")
+        self.assertEqual(profile.school_id, self.school_b.id)
+        self.assertEqual(profile.user_id, other_employee.id)
+
+    def test_employee_login_cannot_be_linked_to_multiple_profiles(self):
+        Employee.objects.create(
+            name="Existing Employee Profile",
+            school=self.school_a,
+            user=self.employee,
+        )
+        self.client.force_authenticate(user=self.school_admin)
+
+        response = self.client.post(
+            "/api/employees/",
+            {
+                "name": "Duplicate Employee Profile",
+                "user": self.employee.id,
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
