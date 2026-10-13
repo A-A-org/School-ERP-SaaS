@@ -386,7 +386,14 @@ class RoleBasedAccessTests(TestCase):
         )
         self.assertEqual(response.data["school"], self.school_a.id)
 
-    def test_employee_can_create_attendance_for_own_school(self):
+def test_employee_can_create_attendance_for_own_school(self):
+        profile = Employee.objects.create(
+            name="Attendance Teacher",
+            position="Teacher",
+            school=self.school_a,
+            user=self.employee,
+        )
+
         self.client.force_authenticate(user=self.employee)
 
         response = self.client.post(
@@ -403,11 +410,8 @@ class RoleBasedAccessTests(TestCase):
             response.status_code,
             status.HTTP_201_CREATED,
         )
-
-        self.assertEqual(
-            response.data["student"],
-            self.student_a.id,
-        )
+        self.assertEqual(response.data["student"], self.student_a.id)
+        self.assertEqual(response.data["employee"], profile.id)
 
     def test_employee_cannot_update_attendance(self):
         attendance = Attendance.objects.create(
@@ -1285,4 +1289,64 @@ def test_school_admin_can_create_employee_and_login_together(self):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertFalse(
             Employee.objects.filter(name="Duplicate Login").exists()
+        )
+
+def test_employee_cannot_record_attendance_as_another_employee(self):
+        own_profile = Employee.objects.create(
+            name="Own Teacher",
+            school=self.school_a,
+            user=self.employee,
+        )
+        other_profile = Employee.objects.create(
+            name="Other Teacher",
+            school=self.school_a,
+        )
+
+        self.client.force_authenticate(user=self.employee)
+
+        response = self.client.post(
+            "/api/attendance/",
+            {
+                "date": "2026-10-14",
+                "status": "present",
+                "student": self.student_a.id,
+                "employee": other_profile.id,
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+        self.assertFalse(
+            Attendance.objects.filter(
+                student=self.student_a,
+                date="2026-10-14",
+            ).exists()
+        )
+        self.assertIsNotNone(own_profile.id)
+
+    def test_employee_without_profile_cannot_record_attendance(self):
+        self.client.force_authenticate(user=self.employee)
+
+        response = self.client.post(
+            "/api/attendance/",
+            {
+                "date": "2026-10-14",
+                "status": "present",
+                "student": self.student_a.id,
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+        self.assertFalse(
+            Attendance.objects.filter(
+                student=self.student_a,
+                date="2026-10-14",
+            ).exists()
         )

@@ -594,19 +594,18 @@ class AttendanceSerializer(serializers.ModelSerializer):
 
     def validate(self, attrs):
         request = self.context.get('request')
-        user = request.user if request else None
+        user = request.user if request and request.user.is_authenticated else None
 
         student = attrs.get(
             'student',
             self.instance.student if self.instance else None
         )
-
         employee = attrs.get(
             'employee',
             self.instance.employee if self.instance else None
         )
 
-        if user and user.is_authenticated:
+        if user:
             if user.role != 'platform_owner':
                 if not user.school_id:
                     raise serializers.ValidationError({
@@ -617,6 +616,22 @@ class AttendanceSerializer(serializers.ModelSerializer):
                     raise serializers.ValidationError({
                         'student': 'Student must belong to your school.'
                     })
+
+            if user.role == 'employee':
+                linked_employee = Employee.objects.filter(user=user).first()
+
+                if linked_employee is None:
+                    raise serializers.ValidationError({
+                        'employee': 'Your account is not linked to an employee profile.'
+                    })
+
+                if employee and employee.pk != linked_employee.pk:
+                    raise serializers.ValidationError({
+                        'employee': 'You can only record attendance under your own employee profile.'
+                    })
+
+                employee = linked_employee
+                attrs['employee'] = linked_employee
 
         if student and employee:
             if employee.school_id != student.school_id:
