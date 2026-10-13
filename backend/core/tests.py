@@ -1,4 +1,4 @@
-﻿from django.test import TestCase
+from django.test import TestCase
 from rest_framework import status
 from rest_framework.test import APIClient
 
@@ -532,4 +532,90 @@ class RoleBasedAccessTests(TestCase):
 
         self.assertTrue(
             Fee.objects.filter(id=fee.id).exists()
+        )
+
+    def test_employee_cannot_list_users(self):
+        self.client.force_authenticate(user=self.employee)
+
+        response = self.client.get("/api/users/")
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_403_FORBIDDEN,
+        )
+
+    def test_school_admin_sees_only_employee_users_in_own_school(self):
+        own_user = User.objects.create_user(
+            username="own_school_employee",
+            password="EmployeePass123!",
+            role="employee",
+            school=self.school_a,
+        )
+
+        User.objects.create_user(
+            username="other_school_employee",
+            password="EmployeePass123!",
+            role="employee",
+            school=self.school_b,
+        )
+
+        self.client.force_authenticate(user=self.school_admin)
+
+        response = self.client.get("/api/users/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        returned_ids = {user["id"] for user in response.data}
+
+        self.assertEqual(
+            returned_ids,
+            {self.employee.id, own_user.id},
+        )
+
+    def test_school_admin_cannot_move_employee_to_another_school(self):
+        employee_user = User.objects.create_user(
+            username="employee_move_test",
+            password="EmployeePass123!",
+            role="employee",
+            school=self.school_a,
+        )
+
+        self.client.force_authenticate(user=self.school_admin)
+
+        response = self.client.patch(
+            f"/api/users/{employee_user.id}/",
+            {"school": self.school_b.id},
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+
+        employee_user.refresh_from_db()
+
+        self.assertEqual(employee_user.school_id, self.school_a.id)
+
+    def test_school_admin_cannot_delete_user_from_another_school(self):
+        other_user = User.objects.create_user(
+            username="other_school_delete_test",
+            password="EmployeePass123!",
+            role="employee",
+            school=self.school_b,
+        )
+
+        self.client.force_authenticate(user=self.school_admin)
+
+        response = self.client.delete(
+            f"/api/users/{other_user.id}/"
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_404_NOT_FOUND,
+        )
+
+        self.assertTrue(
+            User.objects.filter(id=other_user.id).exists()
         )
