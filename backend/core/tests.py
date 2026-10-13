@@ -1,4 +1,4 @@
-from django.test import TestCase
+﻿from django.test import TestCase
 from rest_framework import status
 from rest_framework.test import APIClient
 
@@ -386,7 +386,7 @@ class RoleBasedAccessTests(TestCase):
         )
         self.assertEqual(response.data["school"], self.school_a.id)
 
-def test_employee_can_create_attendance_for_own_school(self):
+    def test_employee_can_create_attendance_for_own_school(self):
         profile = Employee.objects.create(
             name="Attendance Teacher",
             position="Teacher",
@@ -921,7 +921,7 @@ def test_employee_can_create_attendance_for_own_school(self):
             [item["id"] for item in response.data], [grade_a.id]
         )
 
-def test_employee_can_list_only_own_school_exams(self):
+    def test_employee_can_list_only_own_school_exams(self):
         class_a = SchoolClass.objects.create(
             name="Employee Exam A", section="A", school=self.school_a
         )
@@ -1108,7 +1108,7 @@ def test_employee_can_list_only_own_school_exams(self):
             status.HTTP_403_FORBIDDEN,
         )
 
-def test_school_admin_can_link_own_employee_login_to_profile(self):
+    def test_school_admin_can_link_own_employee_login_to_profile(self):
         self.client.force_authenticate(user=self.school_admin)
 
         response = self.client.post(
@@ -1203,7 +1203,7 @@ def test_school_admin_can_link_own_employee_login_to_profile(self):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-def test_school_admin_can_create_employee_and_login_together(self):
+    def test_school_admin_can_create_employee_and_login_together(self):
         self.client.force_authenticate(user=self.school_admin)
 
         response = self.client.post(
@@ -1291,7 +1291,7 @@ def test_school_admin_can_create_employee_and_login_together(self):
             Employee.objects.filter(name="Duplicate Login").exists()
         )
 
-def test_employee_cannot_record_attendance_as_another_employee(self):
+    def test_employee_cannot_record_attendance_as_another_employee(self):
         own_profile = Employee.objects.create(
             name="Own Teacher",
             school=self.school_a,
