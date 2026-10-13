@@ -2,7 +2,7 @@
 from rest_framework import status
 from rest_framework.test import APIClient
 
-from core.models import School, User, Student, SchoolClass, Employee, Attendance
+from core.models import School, User, Student, SchoolClass, Employee, Attendance, Fee
 class RoleBasedAccessTests(TestCase):
 
     def setUp(self):
@@ -445,4 +445,91 @@ class RoleBasedAccessTests(TestCase):
         self.assertEqual(
             response.status_code,
             status.HTTP_403_FORBIDDEN,
+        )
+
+    def test_school_admin_can_update_fee_in_own_school(self):
+        fee = Fee.objects.create(
+            amount="100.00",
+            status="unpaid",
+            student=self.student_a,
+        )
+
+        self.client.force_authenticate(user=self.school_admin)
+
+        response = self.client.patch(
+            f"/api/fees/{fee.id}/",
+            {"status": "paid"},
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+        )
+
+        fee.refresh_from_db()
+        self.assertEqual(fee.status, "paid")
+
+    def test_school_admin_can_delete_fee_in_own_school(self):
+        fee = Fee.objects.create(
+            amount="100.00",
+            status="unpaid",
+            student=self.student_a,
+        )
+
+        self.client.force_authenticate(user=self.school_admin)
+
+        response = self.client.delete(
+            f"/api/fees/{fee.id}/"
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_204_NO_CONTENT,
+        )
+
+        self.assertFalse(
+            Fee.objects.filter(id=fee.id).exists()
+        )
+
+    def test_school_admin_cannot_update_fee_for_other_school(self):
+        fee = Fee.objects.create(
+            amount="200.00",
+            status="unpaid",
+            student=self.student_b,
+        )
+
+        self.client.force_authenticate(user=self.school_admin)
+
+        response = self.client.patch(
+            f"/api/fees/{fee.id}/",
+            {"status": "paid"},
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_404_NOT_FOUND,
+        )
+
+    def test_school_admin_cannot_delete_fee_for_other_school(self):
+        fee = Fee.objects.create(
+            amount="200.00",
+            status="unpaid",
+            student=self.student_b,
+        )
+
+        self.client.force_authenticate(user=self.school_admin)
+
+        response = self.client.delete(
+            f"/api/fees/{fee.id}/"
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_404_NOT_FOUND,
+        )
+
+        self.assertTrue(
+            Fee.objects.filter(id=fee.id).exists()
         )
