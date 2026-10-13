@@ -198,3 +198,116 @@ class RoleBasedAccessTests(TestCase):
             returned_ids,
             {self.student_a.id, self.student_b.id},
         )
+    def test_school_admin_can_create_employee_user_in_own_school(self):
+        self.client.force_authenticate(user=self.school_admin)
+
+        response = self.client.post(
+            "/api/users/",
+            {
+                "username": "new_employee_test",
+                "password": "EmployeePass123!",
+                "full_name": "New Employee",
+                "email": "newemployee@example.com",
+                "role": "employee",
+                "school": self.school_a.id,
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_201_CREATED,
+        )
+
+        created_user = User.objects.get(
+            username="new_employee_test"
+        )
+
+        self.assertEqual(created_user.role, "employee")
+        self.assertEqual(created_user.school_id, self.school_a.id)
+        self.assertTrue(
+            created_user.check_password("EmployeePass123!")
+        )
+
+    def test_school_admin_cannot_create_another_admin(self):
+        self.client.force_authenticate(user=self.school_admin)
+
+        response = self.client.post(
+            "/api/users/",
+            {
+                "username": "unauthorized_admin",
+                "password": "AdminPass123!",
+                "full_name": "Unauthorized Admin",
+                "role": "school_admin",
+                "school": self.school_a.id,
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+
+    def test_school_admin_cannot_create_user_in_another_school(self):
+        self.client.force_authenticate(user=self.school_admin)
+
+        response = self.client.post(
+            "/api/users/",
+            {
+                "username": "wrong_school_employee",
+                "password": "EmployeePass123!",
+                "full_name": "Wrong School Employee",
+                "role": "employee",
+                "school": self.school_b.id,
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+
+    def test_school_admin_cannot_access_other_school_user(self):
+        other_user = User.objects.create_user(
+            username="other_school_employee",
+            password="EmployeePass123!",
+            role="employee",
+            school=self.school_b,
+        )
+
+        self.client.force_authenticate(user=self.school_admin)
+
+        response = self.client.get(
+            f"/api/users/{other_user.id}/"
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_404_NOT_FOUND,
+        )
+
+    def test_school_admin_cannot_promote_employee_to_admin(self):
+        employee_user = User.objects.create_user(
+            username="employee_to_promote",
+            password="EmployeePass123!",
+            role="employee",
+            school=self.school_a,
+        )
+
+        self.client.force_authenticate(user=self.school_admin)
+
+        response = self.client.patch(
+            f"/api/users/{employee_user.id}/",
+            {"role": "school_admin"},
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+
+        employee_user.refresh_from_db()
+        self.assertEqual(employee_user.role, "employee")

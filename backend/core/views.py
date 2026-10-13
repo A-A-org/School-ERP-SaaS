@@ -37,6 +37,19 @@ class UserViewSet(viewsets.ModelViewSet):
     serializer_class = UserSerializer
     permission_classes = [RoleBasedPermission]
 
+    def get_queryset(self):
+        user = self.request.user
+
+        if user.role == 'platform_owner':
+            return User.objects.all()
+
+        if user.role == 'school_admin' and user.school_id:
+            return User.objects.filter(
+                school=user.school,
+                role='employee'
+            )
+
+        return User.objects.none()
 
 
 class SchoolClassViewSet(viewsets.ModelViewSet):

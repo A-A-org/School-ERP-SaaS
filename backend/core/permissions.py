@@ -40,6 +40,7 @@ class RoleBasedPermission(BasePermission):
             'Employee': ALL_ACTIONS,
             'Fee': ALL_ACTIONS,
             'Attendance': ALL_ACTIONS,
+            'User': ALL_ACTIONS,
         },
 
         'employee': {

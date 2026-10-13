@@ -12,6 +12,79 @@ class SchoolSerializer(serializers.ModelSerializer):
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
+        fields = [
+            'id',
+            'username',
+            'password',
+            'full_name',
+            'email',
+            'role',
+            'school',
+        ]
+        extra_kwargs = {
+            'password': {
+                'write_only': True,
+                'required': True,
+            }
+        }
+
+    def validate(self, attrs):
+        request = self.context.get('request')
+        actor = request.user if request else None
+
+        if actor and actor.is_authenticated:
+            if actor.role == 'school_admin':
+                requested_role = attrs.get(
+                    'role',
+                    self.instance.role if self.instance else 'employee'
+                )
+
+                if requested_role != 'employee':
+                    raise serializers.ValidationError({
+                        'role': 'School admins can only manage employee accounts.'
+                    })
+
+                requested_school = attrs.get(
+                    'school',
+                    self.instance.school if self.instance else actor.school
+                )
+
+                if requested_school != actor.school:
+                    raise serializers.ValidationError({
+                        'school': 'You can only manage users in your own school.'
+                    })
+
+        return attrs
+
+    def create(self, validated_data):
+        request = self.context.get('request')
+        actor = request.user if request else None
+
+        if actor and actor.is_authenticated:
+            if actor.role == 'school_admin':
+                validated_data['role'] = 'employee'
+                validated_data['school'] = actor.school
+
+        password = validated_data.pop('password')
+        user = User(**validated_data)
+        user.set_password(password)
+        user.save()
+
+        return user
+
+    def update(self, instance, validated_data):
+        password = validated_data.pop('password', None)
+
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+
+        if password:
+            instance.set_password(password)
+
+        instance.save()
+        return instance
+    class Meta:
+        model = User
         fields = ['id', 'username', 'password', 'full_name', 'email', 'role', 'school']
         extra_kwargs = {'password': {'write_only': True}}
 
