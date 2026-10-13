@@ -11,6 +11,10 @@ from core.views import (
     EmployeeViewSet,
     FeeViewSet,
     AttendanceViewSet,
+    SubjectViewSet,
+    ExamViewSet,
+    GradeViewSet,
+    ReportViewSet,
 )
 
 router = DefaultRouter()
@@ -21,6 +25,10 @@ router.register('students', StudentViewSet, basename='student')
 router.register('employees', EmployeeViewSet)
 router.register('fees', FeeViewSet)
 router.register('attendance', AttendanceViewSet)
+router.register('subjects', SubjectViewSet)
+router.register('exams', ExamViewSet)
+router.register('grades', GradeViewSet)
+router.register('reports', ReportViewSet, basename='report')
 
 urlpatterns = [
     path('admin/', admin.site.urls),

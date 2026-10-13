@@ -1,6 +1,6 @@
 from rest_framework import viewsets
 
-from .models import School, User, SchoolClass, Student, Employee, Fee, Attendance
+from .models import School, User, SchoolClass, Student, Employee, Fee, Attendance, Subject, Exam, Grade
 from .permissions import RoleBasedPermission
 
 from .serializers import (
@@ -11,6 +11,10 @@ from .serializers import (
     EmployeeSerializer,
     FeeSerializer,
     AttendanceSerializer,
+    SubjectSerializer,
+    ExamSerializer,
+    GradeSerializer,
+    GradeReportSerializer,
 )
 
 
@@ -112,6 +116,81 @@ class FeeViewSet(viewsets.ModelViewSet):
             return Fee.objects.filter(student__school=user.school)
 
         return Fee.objects.none()
+
+
+
+class SubjectViewSet(viewsets.ModelViewSet):
+    queryset = Subject.objects.all()
+    serializer_class = SubjectSerializer
+    permission_classes = [RoleBasedPermission]
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.role == "platform_owner":
+            return Subject.objects.all()
+        if user.school_id:
+            return Subject.objects.filter(school_id=user.school_id)
+        return Subject.objects.none()
+
+
+class ExamViewSet(viewsets.ModelViewSet):
+    queryset = Exam.objects.all()
+    serializer_class = ExamSerializer
+    permission_classes = [RoleBasedPermission]
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.role == "platform_owner":
+            return Exam.objects.all()
+        if user.school_id:
+            return Exam.objects.filter(school_id=user.school_id)
+        return Exam.objects.none()
+
+
+class GradeViewSet(viewsets.ModelViewSet):
+    queryset = Grade.objects.all()
+    serializer_class = GradeSerializer
+    permission_classes = [RoleBasedPermission]
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.role == "platform_owner":
+            return Grade.objects.select_related("exam", "student")
+        if user.school_id:
+            return Grade.objects.filter(
+                exam__school_id=user.school_id
+            ).select_related("exam", "student")
+        return Grade.objects.none()
+
+
+class ReportViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = Grade.objects.select_related(
+        "exam", "exam__subject", "exam__school_class", "student"
+    )
+    serializer_class = GradeReportSerializer
+    permission_classes = [RoleBasedPermission]
+
+    def get_queryset(self):
+        user = self.request.user
+        queryset = self.queryset
+
+        if user.role != "platform_owner":
+            if not user.school_id:
+                return queryset.none()
+            queryset = queryset.filter(exam__school_id=user.school_id)
+
+        exam_id = self.request.query_params.get("exam_id")
+        student_id = self.request.query_params.get("student_id")
+        class_id = self.request.query_params.get("class_id")
+
+        if exam_id and exam_id.isdigit():
+            queryset = queryset.filter(exam_id=int(exam_id))
+        if student_id and student_id.isdigit():
+            queryset = queryset.filter(student_id=int(student_id))
+        if class_id and class_id.isdigit():
+            queryset = queryset.filter(exam__school_class_id=int(class_id))
+
+        return queryset
 
 
 class AttendanceViewSet(viewsets.ModelViewSet):

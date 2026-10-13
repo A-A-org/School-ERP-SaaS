@@ -27,6 +27,9 @@ class RoleBasedPermission(BasePermission):
             'School': ALL_ACTIONS,
             'User': ALL_ACTIONS,
             'SchoolClass': ALL_ACTIONS,
+            'Subject': ALL_ACTIONS,
+            'Exam': ALL_ACTIONS,
+            'Grade': ALL_ACTIONS,
             'Student': ALL_ACTIONS,
             'Employee': ALL_ACTIONS,
             'Fee': ALL_ACTIONS,
@@ -36,6 +39,9 @@ class RoleBasedPermission(BasePermission):
         'school_admin': {
             'School': READ_ACTIONS | {'update', 'partial_update'},
             'SchoolClass': ALL_ACTIONS,
+            'Subject': ALL_ACTIONS,
+            'Exam': ALL_ACTIONS,
+            'Grade': ALL_ACTIONS,
             'Student': ALL_ACTIONS,
             'Employee': ALL_ACTIONS,
             'Fee': ALL_ACTIONS,
@@ -45,6 +51,9 @@ class RoleBasedPermission(BasePermission):
 
         'employee': {
             'SchoolClass': READ_ACTIONS,
+            'Subject': READ_ACTIONS,
+            'Exam': READ_ACTIONS,
+            'Grade': READ_ACTIONS,
             'Student': READ_ACTIONS,
            'Attendance': READ_ACTIONS | {'create'},
         },

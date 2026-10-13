@@ -1,8 +1,8 @@
-﻿from django.test import TestCase
+from django.test import TestCase
 from rest_framework import status
 from rest_framework.test import APIClient
 
-from core.models import School, User, Student, SchoolClass, Employee, Attendance, Fee
+from core.models import School, User, Student, SchoolClass, Employee, Attendance, Fee, Subject, Exam, Grade
 class RoleBasedAccessTests(TestCase):
 
     def setUp(self):
@@ -703,4 +703,216 @@ class RoleBasedAccessTests(TestCase):
         self.assertEqual(created_user.role, "employee")
         self.assertTrue(
             created_user.check_password("EmployeePass123!")
+        )
+    def test_school_admin_can_create_subject_in_own_school(self):
+        self.client.force_authenticate(user=self.school_admin)
+        response = self.client.post(
+            "/api/subjects/",
+            {"name": "Mathematics", "code": "MATH"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        subject = Subject.objects.get(code="MATH")
+        self.assertEqual(subject.school_id, self.school_a.id)
+
+    def test_platform_owner_can_create_subject_for_another_school(self):
+        self.client.force_authenticate(user=self.platform_owner)
+        response = self.client.post(
+            "/api/subjects/",
+            {
+                "name": "Physics",
+                "code": "PHY",
+                "school": self.school_b.id,
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(
+            Subject.objects.get(code="PHY").school_id, self.school_b.id
+        )
+
+    def test_school_admin_cannot_retrieve_other_school_subject(self):
+        subject = Subject.objects.create(
+            name="Foreign Subject",
+            code="FOR",
+            school=self.school_b,
+        )
+        self.client.force_authenticate(user=self.school_admin)
+        response = self.client.get(f"/api/subjects/{subject.id}/")
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_school_admin_can_create_exam_for_own_class(self):
+        school_class = SchoolClass.objects.create(
+            name="Math Class", section="A", school=self.school_a
+        )
+        subject = Subject.objects.create(
+            name="Mathematics", code="MTH", school=self.school_a
+        )
+        self.client.force_authenticate(user=self.school_admin)
+        response = self.client.post(
+            "/api/exams/",
+            {
+                "title": "Midterm",
+                "subject": subject.id,
+                "school_class": school_class.id,
+                "exam_date": "2026-10-14",
+                "total_marks": "100.00",
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(
+            Exam.objects.get(title="Midterm").school_id, self.school_a.id
+        )
+
+    def test_school_admin_cannot_create_exam_for_another_school_class(self):
+        school_class = SchoolClass.objects.create(
+            name="Foreign Class", section="B", school=self.school_b
+        )
+        subject = Subject.objects.create(
+            name="Mathematics", code="MTH2", school=self.school_a
+        )
+        self.client.force_authenticate(user=self.school_admin)
+        response = self.client.post(
+            "/api/exams/",
+            {
+                "title": "Invalid Exam",
+                "subject": subject.id,
+                "school_class": school_class.id,
+                "exam_date": "2026-10-14",
+                "total_marks": "100.00",
+            },
+            format="json",
+        )
+        self.assertEqual(
+            response.status_code, status.HTTP_400_BAD_REQUEST
+        )
+
+    def test_school_admin_cannot_retrieve_other_school_exam(self):
+        school_class = SchoolClass.objects.create(
+            name="Foreign Class", section="B", school=self.school_b
+        )
+        subject = Subject.objects.create(
+            name="Biology", code="BIO", school=self.school_b
+        )
+        exam = Exam.objects.create(
+            title="Foreign Exam",
+            school=self.school_b,
+            school_class=school_class,
+            subject=subject,
+            exam_date="2026-10-14",
+            total_marks="100.00",
+        )
+        self.client.force_authenticate(user=self.school_admin)
+        response = self.client.get(f"/api/exams/{exam.id}/")
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_school_admin_can_create_grade_for_student_in_exam_class(self):
+        school_class = SchoolClass.objects.create(
+            name="Grade Class", section="A", school=self.school_a
+        )
+        self.student_a.school_class = school_class
+        self.student_a.save()
+        subject = Subject.objects.create(
+            name="Mathematics", code="MTH3", school=self.school_a
+        )
+        exam = Exam.objects.create(
+            title="Math Exam",
+            school=self.school_a,
+            school_class=school_class,
+            subject=subject,
+            exam_date="2026-10-14",
+            total_marks="100.00",
+        )
+        self.client.force_authenticate(user=self.school_admin)
+        response = self.client.post(
+            "/api/grades/",
+            {
+                "exam": exam.id,
+                "student": self.student_a.id,
+                "marks_obtained": "85.00",
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(
+            Grade.objects.get(exam=exam, student=self.student_a).marks_obtained,
+            85,
+        )
+
+    def test_school_admin_cannot_grade_student_outside_exam_class(self):
+        school_class = SchoolClass.objects.create(
+            name="Exam Class", section="A", school=self.school_a
+        )
+        subject = Subject.objects.create(
+            name="Mathematics", code="MTH4", school=self.school_a
+        )
+        exam = Exam.objects.create(
+            title="Math Exam",
+            school=self.school_a,
+            school_class=school_class,
+            subject=subject,
+            exam_date="2026-10-14",
+            total_marks="100.00",
+        )
+        self.client.force_authenticate(user=self.school_admin)
+        response = self.client.post(
+            "/api/grades/",
+            {
+                "exam": exam.id,
+                "student": self.student_b.id,
+                "marks_obtained": "70.00",
+            },
+            format="json",
+        )
+        self.assertEqual(
+            response.status_code, status.HTTP_400_BAD_REQUEST
+        )
+
+    def test_school_admin_report_is_limited_to_own_school(self):
+        class_a = SchoolClass.objects.create(
+            name="Report A", section="A", school=self.school_a
+        )
+        class_b = SchoolClass.objects.create(
+            name="Report B", section="B", school=self.school_b
+        )
+        self.student_a.school_class = class_a
+        self.student_a.save()
+        self.student_b.school_class = class_b
+        self.student_b.save()
+
+        subject_a = Subject.objects.create(
+            name="Math A", code="RA", school=self.school_a
+        )
+        subject_b = Subject.objects.create(
+            name="Math B", code="RB", school=self.school_b
+        )
+        exam_a = Exam.objects.create(
+            title="Report Exam A",
+            school=self.school_a,
+            school_class=class_a,
+            subject=subject_a,
+            exam_date="2026-10-14",
+            total_marks="100.00",
+        )
+        exam_b = Exam.objects.create(
+            title="Report Exam B",
+            school=self.school_b,
+            school_class=class_b,
+            subject=subject_b,
+            exam_date="2026-10-14",
+            total_marks="100.00",
+        )
+        grade_a = Grade.objects.create(
+            exam=exam_a, student=self.student_a, marks_obtained="90.00"
+        )
+        Grade.objects.create(
+            exam=exam_b, student=self.student_b, marks_obtained="80.00"
+        )
+
+        self.client.force_authenticate(user=self.school_admin)
+        response = self.client.get("/api/reports/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            [item["id"] for item in response.data], [grade_a.id]
         )

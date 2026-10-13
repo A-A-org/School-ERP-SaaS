@@ -95,3 +95,63 @@ class Attendance(models.Model):
 
     def __str__(self):
         return f"{self.student} - {self.date} - {self.status}"
+
+class Subject(models.Model):
+    school = models.ForeignKey(
+        School, on_delete=models.CASCADE, related_name="subjects"
+    )
+    name = models.CharField(max_length=150)
+    code = models.CharField(max_length=30)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.name} ({self.code})"
+
+
+class Exam(models.Model):
+    school = models.ForeignKey(
+        School, on_delete=models.CASCADE, related_name="exams"
+    )
+    school_class = models.ForeignKey(
+        SchoolClass, on_delete=models.CASCADE, related_name="exams"
+    )
+    subject = models.ForeignKey(
+        Subject, on_delete=models.CASCADE, related_name="exams"
+    )
+    title = models.CharField(max_length=200)
+    exam_date = models.DateField()
+    total_marks = models.DecimalField(max_digits=8, decimal_places=2)
+    created_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="created_exams",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.title} - {self.school_class}"
+
+
+class Grade(models.Model):
+    exam = models.ForeignKey(
+        Exam, on_delete=models.CASCADE, related_name="grades"
+    )
+    student = models.ForeignKey(
+        Student, on_delete=models.CASCADE, related_name="grades"
+    )
+    marks_obtained = models.DecimalField(max_digits=8, decimal_places=2)
+    remarks = models.CharField(max_length=500, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["exam", "student"],
+                name="unique_grade_per_exam_student",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.student} - {self.exam}: {self.marks_obtained}"

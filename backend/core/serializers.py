@@ -1,6 +1,7 @@
 from rest_framework import serializers
+from decimal import Decimal
 
-from .models import School, User, SchoolClass, Student, Employee, Fee, Attendance
+from .models import School, User, SchoolClass, Student, Employee, Fee, Attendance, Subject, Exam, Grade
 
 
 class SchoolSerializer(serializers.ModelSerializer):
@@ -265,6 +266,231 @@ class FeeSerializer(serializers.ModelSerializer):
 
         return attrs
 
+
+
+
+class SubjectSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Subject
+        fields = ["id", "name", "code", "school", "created_at"]
+        extra_kwargs = {
+            "school": {"read_only": True},
+            "created_at": {"read_only": True},
+        }
+
+    def validate(self, attrs):
+        request = self.context.get("request")
+        user = request.user if request and request.user.is_authenticated else None
+
+        if not user:
+            raise serializers.ValidationError(
+                "An authenticated user is required."
+            )
+
+        if user.role == "platform_owner":
+            school_id = (
+                self.instance.school_id
+                if self.instance
+                else self.initial_data.get("school")
+            )
+            if not school_id or not School.objects.filter(pk=school_id).exists():
+                raise serializers.ValidationError({
+                    "school": "A valid school is required."
+                })
+        else:
+            if not user.school_id:
+                raise serializers.ValidationError({
+                    "school": "User is not assigned to a school."
+                })
+            if self.instance and self.instance.school_id != user.school_id:
+                raise serializers.ValidationError({
+                    "school": "You can only manage subjects in your own school."
+                })
+
+        return attrs
+
+    def create(self, validated_data):
+        user = self.context["request"].user
+
+        if user.role == "platform_owner":
+            school = School.objects.get(pk=self.initial_data.get("school"))
+        else:
+            school = user.school
+
+        validated_data["school"] = school
+        return super().create(validated_data)
+
+
+class ExamSerializer(serializers.ModelSerializer):
+    total_marks = serializers.DecimalField(
+        max_digits=8, decimal_places=2, min_value=Decimal('0.01')
+    )
+
+    class Meta:
+        model = Exam
+        fields = [
+            "id", "title", "subject", "school_class", "school",
+            "exam_date", "total_marks", "created_by", "created_at",
+        ]
+        extra_kwargs = {
+            "school": {"read_only": True},
+            "created_by": {"read_only": True},
+            "created_at": {"read_only": True},
+        }
+
+    def _target_school(self):
+        request = self.context.get("request")
+        user = request.user if request and request.user.is_authenticated else None
+
+        if not user:
+            raise serializers.ValidationError(
+                "An authenticated user is required."
+            )
+
+        if user.role == "platform_owner":
+            school_id = (
+                self.instance.school_id
+                if self.instance
+                else self.initial_data.get("school")
+            )
+            try:
+                return School.objects.get(pk=school_id)
+            except (School.DoesNotExist, ValueError, TypeError):
+                raise serializers.ValidationError({
+                    "school": "A valid school is required."
+                })
+
+        if not user.school_id:
+            raise serializers.ValidationError({
+                "school": "User is not assigned to a school."
+            })
+
+        if self.instance and self.instance.school_id != user.school_id:
+            raise serializers.ValidationError({
+                "school": "You can only manage exams in your own school."
+            })
+
+        return user.school
+
+    def validate(self, attrs):
+        school = self._target_school()
+        subject = attrs.get(
+            "subject", self.instance.subject if self.instance else None
+        )
+        school_class = attrs.get(
+            "school_class",
+            self.instance.school_class if self.instance else None,
+        )
+
+        if subject and subject.school_id != school.id:
+            raise serializers.ValidationError({
+                "subject": "Subject must belong to the exam school."
+            })
+
+        if school_class and school_class.school_id != school.id:
+            raise serializers.ValidationError({
+                "school_class": "Class must belong to the exam school."
+            })
+
+        return attrs
+
+    def create(self, validated_data):
+        user = self.context["request"].user
+        validated_data["school"] = self._target_school()
+        validated_data["created_by"] = user
+        return super().create(validated_data)
+
+
+class GradeSerializer(serializers.ModelSerializer):
+    marks_obtained = serializers.DecimalField(
+        max_digits=8, decimal_places=2, min_value=Decimal('0')
+    )
+
+    class Meta:
+        model = Grade
+        fields = [
+            "id", "exam", "student", "marks_obtained",
+            "remarks", "created_at",
+        ]
+        extra_kwargs = {
+            "created_at": {"read_only": True},
+        }
+
+    def validate(self, attrs):
+        request = self.context.get("request")
+        user = request.user if request and request.user.is_authenticated else None
+
+        exam = attrs.get(
+            "exam", self.instance.exam if self.instance else None
+        )
+        student = attrs.get(
+            "student", self.instance.student if self.instance else None
+        )
+        marks = attrs.get(
+            "marks_obtained",
+            self.instance.marks_obtained if self.instance else None,
+        )
+
+        if exam and student:
+            if student.school_id != exam.school_id:
+                raise serializers.ValidationError({
+                    "student": "Student and exam must belong to the same school."
+                })
+
+            if student.school_class_id != exam.school_class_id:
+                raise serializers.ValidationError({
+                    "student": "Student must belong to the exam class."
+                })
+
+        if user and user.role != "platform_owner":
+            if not user.school_id or (exam and exam.school_id != user.school_id):
+                raise serializers.ValidationError({
+                    "exam": "Exam must belong to your school."
+                })
+
+        if exam and marks is not None and marks > exam.total_marks:
+            raise serializers.ValidationError({
+                "marks_obtained": "Marks cannot exceed the exam total."
+            })
+
+        return attrs
+
+
+class GradeReportSerializer(serializers.ModelSerializer):
+    exam_title = serializers.CharField(source="exam.title", read_only=True)
+    subject_name = serializers.CharField(
+        source="exam.subject.name", read_only=True
+    )
+    class_name = serializers.CharField(
+        source="exam.school_class.name", read_only=True
+    )
+    student_id = serializers.IntegerField(source="student.id", read_only=True)
+    student_name = serializers.SerializerMethodField()
+    total_marks = serializers.DecimalField(
+        source="exam.total_marks",
+        max_digits=8,
+        decimal_places=2,
+        read_only=True,
+    )
+    percentage = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Grade
+        fields = [
+            "id", "exam_title", "subject_name", "class_name",
+            "student_id", "student_name", "marks_obtained",
+            "total_marks", "percentage", "remarks",
+        ]
+
+    def get_student_name(self, obj):
+        return f"{obj.student.first_name} {obj.student.last_name}".strip()
+
+    def get_percentage(self, obj):
+        if not obj.exam.total_marks:
+            return 0
+        return round(
+            float(obj.marks_obtained / obj.exam.total_marks * 100), 2
+        )
 
 
 class AttendanceSerializer(serializers.ModelSerializer):
