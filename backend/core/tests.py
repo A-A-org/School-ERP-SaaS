@@ -916,3 +916,190 @@ class RoleBasedAccessTests(TestCase):
         self.assertEqual(
             [item["id"] for item in response.data], [grade_a.id]
         )
+
+def test_employee_can_list_only_own_school_exams(self):
+        class_a = SchoolClass.objects.create(
+            name="Employee Exam A", section="A", school=self.school_a
+        )
+        class_b = SchoolClass.objects.create(
+            name="Employee Exam B", section="B", school=self.school_b
+        )
+        subject_a = Subject.objects.create(
+            name="Math A", code="EMP-MA", school=self.school_a
+        )
+        subject_b = Subject.objects.create(
+            name="Math B", code="EMP-MB", school=self.school_b
+        )
+        exam_a = Exam.objects.create(
+            title="Own Exam",
+            school=self.school_a,
+            school_class=class_a,
+            subject=subject_a,
+            exam_date="2026-10-14",
+            total_marks="100.00",
+        )
+        Exam.objects.create(
+            title="Foreign Exam",
+            school=self.school_b,
+            school_class=class_b,
+            subject=subject_b,
+            exam_date="2026-10-14",
+            total_marks="100.00",
+        )
+
+        self.client.force_authenticate(user=self.employee)
+        response = self.client.get("/api/exams/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual([item["id"] for item in response.data], [exam_a.id])
+
+    def test_employee_cannot_create_exam(self):
+        self.client.force_authenticate(user=self.employee)
+
+        response = self.client.post(
+            "/api/exams/",
+            {"title": "Forbidden Exam"},
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_403_FORBIDDEN,
+        )
+
+    def test_employee_cannot_create_subject(self):
+        self.client.force_authenticate(user=self.employee)
+
+        response = self.client.post(
+            "/api/subjects/",
+            {"name": "Forbidden Subject", "code": "NO-SUB"},
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_403_FORBIDDEN,
+        )
+
+    def test_school_admin_cannot_grade_other_school_exam(self):
+        class_b = SchoolClass.objects.create(
+            name="Foreign Grade Class", section="B", school=self.school_b
+        )
+        self.student_b.school_class = class_b
+        self.student_b.save()
+
+        subject_b = Subject.objects.create(
+            name="Foreign Grade Subject",
+            code="FGS",
+            school=self.school_b,
+        )
+        exam_b = Exam.objects.create(
+            title="Foreign Grade Exam",
+            school=self.school_b,
+            school_class=class_b,
+            subject=subject_b,
+            exam_date="2026-10-14",
+            total_marks="100.00",
+        )
+
+        self.client.force_authenticate(user=self.school_admin)
+        response = self.client.post(
+            "/api/grades/",
+            {
+                "exam": exam_b.id,
+                "student": self.student_b.id,
+                "marks_obtained": "75.00",
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+
+    def test_school_admin_cannot_submit_marks_above_exam_total(self):
+        class_a = SchoolClass.objects.create(
+            name="Marks Limit Class", section="A", school=self.school_a
+        )
+        self.student_a.school_class = class_a
+        self.student_a.save()
+
+        subject_a = Subject.objects.create(
+            name="Marks Limit Subject",
+            code="MLS",
+            school=self.school_a,
+        )
+        exam_a = Exam.objects.create(
+            title="Marks Limit Exam",
+            school=self.school_a,
+            school_class=class_a,
+            subject=subject_a,
+            exam_date="2026-10-14",
+            total_marks="100.00",
+        )
+
+        self.client.force_authenticate(user=self.school_admin)
+        response = self.client.post(
+            "/api/grades/",
+            {
+                "exam": exam_a.id,
+                "student": self.student_a.id,
+                "marks_obtained": "101.00",
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+        self.assertIn("marks_obtained", response.data)
+
+    def test_employee_cannot_retrieve_other_school_grade(self):
+        class_b = SchoolClass.objects.create(
+            name="Foreign Report Class", section="B", school=self.school_b
+        )
+        self.student_b.school_class = class_b
+        self.student_b.save()
+
+        subject_b = Subject.objects.create(
+            name="Foreign Report Subject",
+            code="FRS",
+            school=self.school_b,
+        )
+        exam_b = Exam.objects.create(
+            title="Foreign Report Exam",
+            school=self.school_b,
+            school_class=class_b,
+            subject=subject_b,
+            exam_date="2026-10-14",
+            total_marks="100.00",
+        )
+        grade_b = Grade.objects.create(
+            exam=exam_b,
+            student=self.student_b,
+            marks_obtained="80.00",
+        )
+
+        self.client.force_authenticate(user=self.employee)
+        response = self.client.get(f"/api/grades/{grade_b.id}/")
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_404_NOT_FOUND,
+        )
+
+    def test_employee_cannot_create_grade(self):
+        self.client.force_authenticate(user=self.employee)
+
+        response = self.client.post(
+            "/api/grades/",
+            {},
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_403_FORBIDDEN,
+        )
