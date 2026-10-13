@@ -1,3 +1,200 @@
 from django.test import TestCase
+from rest_framework import status
+from rest_framework.test import APIClient
 
-# Create your tests here.
+from core.models import School, User, Student
+
+
+class RoleBasedAccessTests(TestCase):
+
+    def setUp(self):
+        self.client = APIClient()
+
+        self.school_a = School.objects.create(
+            name="Test School A"
+        )
+        self.school_b = School.objects.create(
+            name="Test School B"
+        )
+
+        self.school_admin = User.objects.create_user(
+            username="schooladmin_test",
+            password="TestPass123!",
+            role="school_admin",
+            school=self.school_a,
+        )
+
+        self.employee = User.objects.create_user(
+            username="employee_test",
+            password="TestPass123!",
+            role="employee",
+            school=self.school_a,
+        )
+
+        self.platform_owner = User.objects.create_user(
+            username="owner_test",
+            password="TestPass123!",
+            role="platform_owner",
+        )
+
+        self.student_a = Student.objects.create(
+            first_name="Student",
+            last_name="SchoolA",
+            gender="male",
+            school=self.school_a,
+        )
+
+        self.student_b = Student.objects.create(
+            first_name="Student",
+            last_name="SchoolB",
+            gender="female",
+            school=self.school_b,
+        )
+
+    def test_employee_sees_only_own_school_students(self):
+        self.client.force_authenticate(user=self.employee)
+
+        response = self.client.get("/api/students/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        returned_ids = {
+            student["id"] for student in response.data
+        }
+
+        self.assertEqual(returned_ids, {self.student_a.id})
+
+    def test_employee_cannot_create_student(self):
+        self.client.force_authenticate(user=self.employee)
+
+        response = self.client.post(
+            "/api/students/",
+            {
+                "first_name": "Unauthorized",
+                "last_name": "Student",
+                "gender": "male",
+                "school": self.school_a.id,
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_403_FORBIDDEN,
+        )
+
+    def test_employee_cannot_update_student(self):
+        self.client.force_authenticate(user=self.employee)
+
+        response = self.client.patch(
+            f"/api/students/{self.student_a.id}/",
+            {"phone": "999999999"},
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_403_FORBIDDEN,
+        )
+
+    def test_employee_cannot_access_fees(self):
+        self.client.force_authenticate(user=self.employee)
+
+        response = self.client.get("/api/fees/")
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_403_FORBIDDEN,
+        )
+
+    def test_school_admin_cannot_access_other_school_student(self):
+        self.client.force_authenticate(user=self.school_admin)
+
+        response = self.client.get(
+            f"/api/students/{self.student_b.id}/"
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_404_NOT_FOUND,
+        )
+
+    def test_school_admin_student_is_assigned_to_own_school(self):
+        self.client.force_authenticate(user=self.school_admin)
+
+        response = self.client.post(
+            "/api/students/",
+            {
+                "first_name": "New",
+                "last_name": "Student",
+                "gender": "male",
+                "school": self.school_b.id,
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_201_CREATED,
+        )
+
+        self.assertEqual(
+            response.data["school"],
+            self.school_a.id,
+        )
+
+    def test_school_admin_cannot_create_fee_for_other_school_student(self):
+        self.client.force_authenticate(user=self.school_admin)
+
+        response = self.client.post(
+            "/api/fees/",
+            {
+                "amount": "100.00",
+                "status": "unpaid",
+                "student": self.student_b.id,
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+
+        self.assertIn("student", response.data)
+
+    def test_school_admin_cannot_record_attendance_for_other_school_student(self):
+        self.client.force_authenticate(user=self.school_admin)
+
+        response = self.client.post(
+            "/api/attendance/",
+            {
+                "date": "2026-10-14",
+                "status": "present",
+                "student": self.student_b.id,
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+
+        self.assertIn("student", response.data)
+
+    def test_platform_owner_can_see_students_from_all_schools(self):
+        self.client.force_authenticate(user=self.platform_owner)
+
+        response = self.client.get("/api/students/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        returned_ids = {
+            student["id"] for student in response.data
+        }
+
+        self.assertEqual(
+            returned_ids,
+            {self.student_a.id, self.student_b.id},
+        )
