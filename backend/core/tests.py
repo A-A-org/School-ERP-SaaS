@@ -2,8 +2,7 @@ from django.test import TestCase
 from rest_framework import status
 from rest_framework.test import APIClient
 
-from core.models import School, User, Student
-
+from core.models import School, User, Student, SchoolClass
 
 class RoleBasedAccessTests(TestCase):
 
@@ -311,3 +310,79 @@ class RoleBasedAccessTests(TestCase):
 
         employee_user.refresh_from_db()
         self.assertEqual(employee_user.role, "employee")
+    def test_employee_sees_only_own_school_classes(self):
+        class_a = SchoolClass.objects.create(
+            name="Class A",
+            section="A",
+            school=self.school_a,
+        )
+        SchoolClass.objects.create(
+            name="Class B",
+            section="B",
+            school=self.school_b,
+        )
+
+        self.client.force_authenticate(user=self.employee)
+
+        response = self.client.get("/api/classes/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            {item["id"] for item in response.data},
+            {class_a.id},
+        )
+
+    def test_employee_cannot_create_class(self):
+        self.client.force_authenticate(user=self.employee)
+
+        response = self.client.post(
+            "/api/classes/",
+            {
+                "name": "Unauthorized Class",
+                "section": "X",
+                "school": self.school_a.id,
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_403_FORBIDDEN,
+        )
+
+    def test_school_admin_cannot_access_other_school_class(self):
+        other_class = SchoolClass.objects.create(
+            name="Other School Class",
+            section="B",
+            school=self.school_b,
+        )
+
+        self.client.force_authenticate(user=self.school_admin)
+
+        response = self.client.get(
+            f"/api/classes/{other_class.id}/"
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_404_NOT_FOUND,
+        )
+
+    def test_school_admin_class_is_assigned_to_own_school(self):
+        self.client.force_authenticate(user=self.school_admin)
+
+        response = self.client.post(
+            "/api/classes/",
+            {
+                "name": "New Class",
+                "section": "C",
+                "school": self.school_b.id,
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_201_CREATED,
+        )
+        self.assertEqual(response.data["school"], self.school_a.id)
