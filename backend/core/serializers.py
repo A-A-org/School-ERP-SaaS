@@ -24,52 +24,68 @@ class UserSerializer(serializers.ModelSerializer):
         extra_kwargs = {
             'password': {
                 'write_only': True,
-                'required': True,
+                'required': False,
             }
         }
 
     def validate(self, attrs):
         request = self.context.get('request')
-        actor = request.user if request else None
+        actor = request.user if request and request.user.is_authenticated else None
 
-        if actor and actor.is_authenticated:
-            if actor.role == 'school_admin':
-                requested_role = attrs.get(
-                    'role',
-                    self.instance.role if self.instance else 'employee'
-                )
+        if self.instance is None and not attrs.get('password'):
+            raise serializers.ValidationError({
+                'password': 'Password is required when creating a user.'
+            })
 
-                if requested_role != 'employee':
-                    raise serializers.ValidationError({
-                        'role': 'School admins can only manage employee accounts.'
-                    })
+        if actor and actor.role == 'school_admin':
+            if not actor.school_id:
+                raise serializers.ValidationError({
+                    'school': 'School admin must be assigned to a school.'
+                })
 
-                requested_school = attrs.get(
-                    'school',
-                    self.instance.school if self.instance else actor.school
-                )
+            requested_role = attrs.get(
+                'role',
+                self.instance.role if self.instance else 'employee'
+            )
 
-                if requested_school != actor.school:
-                    raise serializers.ValidationError({
-                        'school': 'You can only manage users in your own school.'
-                    })
+            if requested_role != 'employee':
+                raise serializers.ValidationError({
+                    'role': 'School admins can only manage employee accounts.'
+                })
+
+            requested_school = attrs.get(
+                'school',
+                self.instance.school if self.instance else actor.school
+            )
+
+            if requested_school != actor.school:
+                raise serializers.ValidationError({
+                    'school': 'You can only manage users in your own school.'
+                })
+
+        if actor and actor.role == 'platform_owner' and self.instance is None:
+            requested_role = attrs.get('role', 'employee')
+            requested_school = attrs.get('school')
+
+            if requested_role in ('school_admin', 'employee') and not requested_school:
+                raise serializers.ValidationError({
+                    'school': 'A school is required for this user role.'
+                })
 
         return attrs
 
     def create(self, validated_data):
         request = self.context.get('request')
-        actor = request.user if request else None
+        actor = request.user if request and request.user.is_authenticated else None
 
-        if actor and actor.is_authenticated:
-            if actor.role == 'school_admin':
-                validated_data['role'] = 'employee'
-                validated_data['school'] = actor.school
+        if actor and actor.role == 'school_admin':
+            validated_data['role'] = 'employee'
+            validated_data['school'] = actor.school
 
         password = validated_data.pop('password')
         user = User(**validated_data)
         user.set_password(password)
         user.save()
-
         return user
 
     def update(self, instance, validated_data):
@@ -83,29 +99,6 @@ class UserSerializer(serializers.ModelSerializer):
 
         instance.save()
         return instance
-    class Meta:
-        model = User
-        fields = ['id', 'username', 'password', 'full_name', 'email', 'role', 'school']
-        extra_kwargs = {'password': {'write_only': True}}
-
-    def create(self, validated_data):
-        password = validated_data.pop('password')
-        user = User(**validated_data)
-        user.set_password(password)
-        user.save()
-        return user
-    def update(self, instance, validated_data):
-        password = validated_data.pop('password', None)
-
-        for attr, value in validated_data.items():
-            setattr(instance, attr, value)
-
-        if password:
-            instance.set_password(password)
-
-        instance.save()
-        return instance
-
 
 class SchoolClassSerializer(serializers.ModelSerializer):
     class Meta:
@@ -155,9 +148,9 @@ class StudentSerializer(serializers.ModelSerializer):
 
     def _get_target_school(self):
         request = self.context.get('request')
-        user = request.user if request else None
+        user = request.user if request and request.user.is_authenticated else None
 
-        if not user or not user.is_authenticated:
+        if not user:
             raise serializers.ValidationError({
                 'school': 'Authenticated user is required.'
             })
@@ -205,30 +198,6 @@ class StudentSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         validated_data['school'] = self._get_target_school()
         return super().create(validated_data)
-
-    def create(self, validated_data):
-        user = self.context['request'].user
-
-        if user.role == 'platform_owner':
-            school = self.initial_data.get('school')
-
-            if not school:
-                raise serializers.ValidationError({
-                    'school': 'School is required.'
-                })
-
-            validated_data['school_id'] = school
-
-        else:
-            if not user.school:
-                raise serializers.ValidationError({
-                    'school': 'User is not assigned to a school.'
-                })
-
-            validated_data['school'] = user.school
-
-        return super().create(validated_data)
-
 
 class EmployeeSerializer(serializers.ModelSerializer):
     class Meta:

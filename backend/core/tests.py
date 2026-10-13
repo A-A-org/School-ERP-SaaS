@@ -672,3 +672,35 @@ class RoleBasedAccessTests(TestCase):
             self.employee.password,
             "NewSecurePass123!",
         )
+
+    def test_school_admin_employee_school_is_assigned_when_omitted(self):
+        self.client.force_authenticate(user=self.school_admin)
+
+        response = self.client.post(
+            "/api/users/",
+            {
+                "username": "auto_school_employee",
+                "password": "EmployeePass123!",
+                "full_name": "Auto School Employee",
+                "role": "employee",
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_201_CREATED,
+        )
+
+        created_user = User.objects.get(
+            username="auto_school_employee"
+        )
+
+        self.assertEqual(
+            created_user.school_id,
+            self.school_a.id,
+        )
+        self.assertEqual(created_user.role, "employee")
+        self.assertTrue(
+            created_user.check_password("EmployeePass123!")
+        )
