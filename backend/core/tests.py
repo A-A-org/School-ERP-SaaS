@@ -1198,3 +1198,91 @@ def test_school_admin_can_link_own_employee_login_to_profile(self):
         )
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+def test_school_admin_can_create_employee_and_login_together(self):
+        self.client.force_authenticate(user=self.school_admin)
+
+        response = self.client.post(
+            "/api/employees/",
+            {
+                "name": "New Login Teacher",
+                "position": "Teacher",
+                "username": "new_login_teacher",
+                "password": "TeacherPass123!",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        profile = Employee.objects.get(name="New Login Teacher")
+        account = User.objects.get(username="new_login_teacher")
+
+        self.assertEqual(profile.school_id, self.school_a.id)
+        self.assertEqual(profile.user_id, account.id)
+        self.assertEqual(account.role, "employee")
+        self.assertEqual(account.school_id, self.school_a.id)
+        self.assertTrue(account.check_password("TeacherPass123!"))
+        self.assertNotEqual(account.password, "TeacherPass123!")
+
+    def test_platform_owner_can_create_employee_and_login_together(self):
+        self.client.force_authenticate(user=self.platform_owner)
+
+        response = self.client.post(
+            "/api/employees/",
+            {
+                "name": "School B Teacher",
+                "school": self.school_b.id,
+                "username": "school_b_login_teacher",
+                "password": "TeacherPass123!",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        profile = Employee.objects.get(name="School B Teacher")
+        account = User.objects.get(username="school_b_login_teacher")
+
+        self.assertEqual(profile.school_id, self.school_b.id)
+        self.assertEqual(profile.user_id, account.id)
+        self.assertEqual(account.school_id, self.school_b.id)
+        self.assertEqual(account.role, "employee")
+
+    def test_employee_creation_rejects_missing_password(self):
+        self.client.force_authenticate(user=self.school_admin)
+
+        response = self.client.post(
+            "/api/employees/",
+            {
+                "name": "Incomplete Login",
+                "username": "incomplete_login_teacher",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(
+            Employee.objects.filter(name="Incomplete Login").exists()
+        )
+        self.assertFalse(
+            User.objects.filter(username="incomplete_login_teacher").exists()
+        )
+
+    def test_employee_creation_rejects_duplicate_username(self):
+        self.client.force_authenticate(user=self.school_admin)
+
+        response = self.client.post(
+            "/api/employees/",
+            {
+                "name": "Duplicate Login",
+                "username": self.employee.username,
+                "password": "TeacherPass123!",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(
+            Employee.objects.filter(name="Duplicate Login").exists()
+        )

@@ -201,98 +201,135 @@ class StudentSerializer(serializers.ModelSerializer):
         return super().create(validated_data)
 
 class EmployeeSerializer(serializers.ModelSerializer):
+    username = serializers.CharField(
+        write_only=True, required=False, allow_blank=False
+    )
+    password = serializers.CharField(
+        write_only=True, required=False, allow_blank=False, min_length=8
+    )
+
     class Meta:
         model = Employee
-        fields = '__all__'
+        fields = [
+            "id", "user", "username", "password", "name",
+            "email", "phone", "position", "school",
+        ]
         extra_kwargs = {
-            'school': {'read_only': True}
+            "school": {"read_only": True},
+            "user": {"required": False, "allow_null": True},
         }
 
     def validate(self, attrs):
-        request = self.context.get('request')
-        actor = request.user if request and request.user.is_authenticated else None
-
-        linked_user = attrs.get(
-            'user',
-            self.instance.user if self.instance else None
+        request = self.context.get("request")
+        actor = (
+            request.user
+            if request and request.user.is_authenticated
+            else None
         )
 
-        if not linked_user:
-            return attrs
+        if not actor:
+            raise serializers.ValidationError(
+                "An authenticated user is required."
+            )
 
-        if linked_user.role != 'employee':
-            raise serializers.ValidationError({
-                'user': 'Only employee accounts can be linked to an employee profile.'
-            })
-
-        if actor and actor.role == 'platform_owner':
+        if actor.role == "platform_owner":
             if self.instance:
-                target_school_id = self.instance.school_id
+                target_school = self.instance.school
             else:
-                target_school_id = self.initial_data.get('school')
-
-            try:
-                target_school_id = int(target_school_id)
-            except (TypeError, ValueError):
-                raise serializers.ValidationError({
-                    'school': 'A valid school is required.'
-                })
-        elif actor:
-            target_school_id = actor.school_id
-
-            if not target_school_id:
-                raise serializers.ValidationError({
-                    'school': 'User is not assigned to a school.'
-                })
+                school_id = self.initial_data.get("school")
+                try:
+                    target_school = School.objects.get(pk=school_id)
+                except (School.DoesNotExist, ValueError, TypeError):
+                    raise serializers.ValidationError({
+                        "school": "A valid school is required."
+                    })
         else:
+            if not actor.school_id:
+                raise serializers.ValidationError({
+                    "school": "User is not assigned to a school."
+                })
+
+            target_school = actor.school
+
+            if self.instance and self.instance.school_id != actor.school_id:
+                raise serializers.ValidationError({
+                    "school": "You can only manage employees in your own school."
+                })
+
+        username = attrs.get("username")
+        password = attrs.get("password")
+
+        if bool(username) != bool(password):
             raise serializers.ValidationError({
-                'user': 'An authenticated user is required.'
+                "username": "Provide both username and password to create a login account."
             })
 
-        if linked_user.school_id != target_school_id:
+        if self.instance and (username or password):
             raise serializers.ValidationError({
-                'user': 'Employee account must belong to the same school.'
+                "username": "Login credentials can only be supplied when creating an employee."
             })
 
-        existing = Employee.objects.filter(user=linked_user)
-        if self.instance:
-            existing = existing.exclude(pk=self.instance.pk)
+        linked_user = attrs.get(
+            "user",
+            self.instance.user if self.instance else None,
+        )
 
-        if existing.exists():
+        if username and linked_user:
             raise serializers.ValidationError({
-                'user': 'This account is already linked to an employee profile.'
+                "user": "Provide an existing user OR new login credentials, not both."
             })
+
+        if username and User.objects.filter(username=username).exists():
+            raise serializers.ValidationError({
+                "username": "This username is already in use."
+            })
+
+        if linked_user:
+            if linked_user.role != "employee":
+                raise serializers.ValidationError({
+                    "user": "Only employee accounts can be linked to employee profiles."
+                })
+
+            if linked_user.school_id != target_school.id:
+                raise serializers.ValidationError({
+                    "user": "The login account and employee profile must belong to the same school."
+                })
+
+            existing = Employee.objects.filter(user=linked_user)
+            if self.instance:
+                existing = existing.exclude(pk=self.instance.pk)
+
+            if existing.exists():
+                raise serializers.ValidationError({
+                    "user": "This account is already linked to an employee profile."
+                })
 
         return attrs
 
     def create(self, validated_data):
-        user = self.context['request'].user
+        username = validated_data.pop("username", None)
+        password = validated_data.pop("password", None)
 
-        if user.role == 'platform_owner':
-            school_id = self.initial_data.get('school')
+        request = self.context["request"]
+        actor = request.user
 
-            if not school_id:
-                raise serializers.ValidationError({
-                    'school': 'School is required.'
-                })
-
-            try:
-                school = School.objects.get(pk=school_id)
-            except (School.DoesNotExist, ValueError, TypeError):
-                raise serializers.ValidationError({
-                    'school': 'A valid school is required.'
-                })
-
-            validated_data['school'] = school
-
+        if actor.role == "platform_owner":
+            school = School.objects.get(pk=self.initial_data.get("school"))
         else:
-            if not user.school_id:
-                raise serializers.ValidationError({
-                    'school': 'User is not assigned to a school.'
-                })
+            school = actor.school
 
-            validated_data['school'] = user.school
+        if username and password:
+            account = User(
+                username=username,
+                full_name=validated_data.get("name", ""),
+                role="employee",
+                school=school,
+            )
+            account.set_password(password)
+            account.save()
+            validated_data["user"] = account
 
+        validated_data["school"] = school
         return super().create(validated_data)
 
 class FeeSerializer(serializers.ModelSerializer):
