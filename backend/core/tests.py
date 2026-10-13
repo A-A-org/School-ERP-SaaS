@@ -1,4 +1,4 @@
-from django.test import TestCase
+﻿from django.test import TestCase
 from rest_framework import status
 from rest_framework.test import APIClient
 
@@ -618,4 +618,57 @@ class RoleBasedAccessTests(TestCase):
 
         self.assertTrue(
             User.objects.filter(id=other_user.id).exists()
+        )
+    def test_platform_owner_can_create_admin_for_any_school(self):
+        self.client.force_authenticate(user=self.platform_owner)
+
+        response = self.client.post(
+            "/api/users/",
+            {
+                "username": "platform_created_admin",
+                "password": "OwnerAdminPass123!",
+                "full_name": "Platform Created Admin",
+                "role": "school_admin",
+                "school": self.school_b.id,
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_201_CREATED,
+        )
+
+        created_user = User.objects.get(
+            username="platform_created_admin"
+        )
+
+        self.assertEqual(created_user.role, "school_admin")
+        self.assertEqual(created_user.school_id, self.school_b.id)
+        self.assertTrue(
+            created_user.check_password("OwnerAdminPass123!")
+        )
+
+    def test_platform_owner_can_update_user_password_securely(self):
+        self.client.force_authenticate(user=self.platform_owner)
+
+        response = self.client.patch(
+            f"/api/users/{self.employee.id}/",
+            {"password": "NewSecurePass123!"},
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+        )
+
+        self.employee.refresh_from_db()
+
+        self.assertTrue(
+            self.employee.check_password("NewSecurePass123!")
+        )
+        self.assertNotEqual(
+            self.employee.password,
+            "NewSecurePass123!",
         )
