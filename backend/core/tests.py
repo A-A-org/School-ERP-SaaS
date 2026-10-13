@@ -1,9 +1,8 @@
-from django.test import TestCase
+﻿from django.test import TestCase
 from rest_framework import status
 from rest_framework.test import APIClient
 
-from core.models import School, User, Student, SchoolClass
-
+from core.models import School, User, Student, SchoolClass, Employee, Attendance
 class RoleBasedAccessTests(TestCase):
 
     def setUp(self):
@@ -386,3 +385,64 @@ class RoleBasedAccessTests(TestCase):
             status.HTTP_201_CREATED,
         )
         self.assertEqual(response.data["school"], self.school_a.id)
+
+    def test_employee_can_create_attendance_for_own_school(self):
+        self.client.force_authenticate(user=self.employee)
+
+        response = self.client.post(
+            "/api/attendance/",
+            {
+                "date": "2026-10-14",
+                "status": "present",
+                "student": self.student_a.id,
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_201_CREATED,
+        )
+
+        self.assertEqual(
+            response.data["student"],
+            self.student_a.id,
+        )
+
+    def test_employee_cannot_update_attendance(self):
+        attendance = Attendance.objects.create(
+            date="2026-10-14",
+            status="present",
+            student=self.student_a,
+        )
+
+        self.client.force_authenticate(user=self.employee)
+
+        response = self.client.patch(
+            f"/api/attendance/{attendance.id}/",
+            {"status": "absent"},
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_403_FORBIDDEN,
+        )
+
+    def test_employee_cannot_delete_attendance(self):
+        attendance = Attendance.objects.create(
+            date="2026-10-14",
+            status="present",
+            student=self.student_a,
+        )
+
+        self.client.force_authenticate(user=self.employee)
+
+        response = self.client.delete(
+            f"/api/attendance/{attendance.id}/"
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_403_FORBIDDEN,
+        )
