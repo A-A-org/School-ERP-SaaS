@@ -1482,3 +1482,117 @@ class RoleBasedAccessTests(TestCase):
         self.assertEqual(response.data[0]["class_id"], class_a.id)
         self.assertEqual(response.data[0]["student_count"], 1)
         self.assertEqual(response.data[0]["average_percentage"], 75.0)
+
+    def test_class_summary_calculates_average(self):
+        school_class = SchoolClass.objects.create(
+            name="Average Class",
+            section="A",
+            school=self.school_a,
+        )
+
+        self.student_a.school_class = school_class
+        self.student_a.save()
+
+        subject = Subject.objects.create(
+            name="Mathematics",
+            code="AVG-MATH",
+            school=self.school_a,
+        )
+
+        exam = Exam.objects.create(
+            title="Math Exam",
+            school=self.school_a,
+            school_class=school_class,
+            subject=subject,
+            exam_date="2026-10-14",
+            total_marks="100.00",
+        )
+
+        Grade.objects.create(
+            exam=exam,
+            student=self.student_a,
+            marks_obtained="75.00",
+        )
+
+        self.client.force_authenticate(user=self.school_admin)
+        response = self.client.get("/api/reports/class-summary/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(
+            response.data[0]["class_id"],
+            school_class.id,
+        )
+        self.assertEqual(
+            response.data[0]["average_percentage"],
+            75.0,
+        )
+    def test_class_summary_only_returns_own_school_classes(self):
+        class_a = SchoolClass.objects.create(
+            name="School A Class",
+            section="A",
+            school=self.school_a,
+        )
+        class_b = SchoolClass.objects.create(
+            name="School B Class",
+            section="B",
+            school=self.school_b,
+        )
+
+        self.student_a.school_class = class_a
+        self.student_a.save()
+        self.student_b.school_class = class_b
+        self.student_b.save()
+
+        subject_a = Subject.objects.create(
+            name="Math A",
+            code="ISO-MATH-A",
+            school=self.school_a,
+        )
+        subject_b = Subject.objects.create(
+            name="Math B",
+            code="ISO-MATH-B",
+            school=self.school_b,
+        )
+
+        exam_a = Exam.objects.create(
+            title="Exam A",
+            school=self.school_a,
+            school_class=class_a,
+            subject=subject_a,
+            exam_date="2026-10-14",
+            total_marks="100.00",
+        )
+        exam_b = Exam.objects.create(
+            title="Exam B",
+            school=self.school_b,
+            school_class=class_b,
+            subject=subject_b,
+            exam_date="2026-10-14",
+            total_marks="100.00",
+        )
+
+        Grade.objects.create(
+            exam=exam_a,
+            student=self.student_a,
+            marks_obtained="70.00",
+        )
+        Grade.objects.create(
+            exam=exam_b,
+            student=self.student_b,
+            marks_obtained="95.00",
+        )
+
+        self.client.force_authenticate(user=self.school_admin)
+        response = self.client.get("/api/reports/class-summary/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(
+            response.data[0]["class_id"],
+            class_a.id,
+        )
+        self.assertEqual(
+            response.data[0]["average_percentage"],
+            70.0,
+        )
