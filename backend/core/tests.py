@@ -1596,3 +1596,31 @@ class RoleBasedAccessTests(TestCase):
             response.data[0]["average_percentage"],
             70.0,
         )
+    def test_financial_summary_only_counts_fees_from_own_school(self):
+        Fee.objects.create(
+            amount="120.00",
+            status="paid",
+            student=self.student_a,
+        )
+        Fee.objects.create(
+            amount="80.00",
+            status="unpaid",
+            student=self.student_a,
+        )
+        Fee.objects.create(
+            amount="900.00",
+            status="paid",
+            student=self.student_b,
+        )
+
+        self.client.force_authenticate(user=self.school_admin)
+
+        response = self.client.get("/api/fees/financial-summary/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["fee_count"], 2)
+        self.assertEqual(response.data["paid_count"], 1)
+        self.assertEqual(response.data["unpaid_count"], 1)
+        self.assertEqual(response.data["total_amount"], 200.0)
+        self.assertEqual(response.data["paid_amount"], 120.0)
+        self.assertEqual(response.data["unpaid_amount"], 80.0)
