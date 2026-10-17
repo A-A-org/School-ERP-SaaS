@@ -1,4 +1,6 @@
 from rest_framework import viewsets
+from rest_framework.decorators import action
+from rest_framework.response import Response
 
 from .models import School, User, SchoolClass, Student, Employee, Fee, Attendance, Subject, Exam, Grade
 from .permissions import RoleBasedPermission
@@ -191,6 +193,111 @@ class ReportViewSet(viewsets.ReadOnlyModelViewSet):
             queryset = queryset.filter(exam__school_class_id=int(class_id))
 
         return queryset
+
+    @action(detail=False, methods=["get"], url_path="student-summary")
+    def student_summary(self, request):
+        grades = self.get_queryset().select_related("student", "exam")
+        summaries = {}
+
+        for grade in grades:
+            student_id = grade.student_id
+
+            if student_id not in summaries:
+                summaries[student_id] = {
+                    "student_id": student_id,
+                    "student_name": (
+                        f"{grade.student.first_name} "
+                        f"{grade.student.last_name}"
+                    ).strip(),
+                    "exam_ids": set(),
+                    "grade_count": 0,
+                    "marks_total": 0.0,
+                    "percentage_total": 0.0,
+                }
+
+            row = summaries[student_id]
+            row["exam_ids"].add(grade.exam_id)
+            row["grade_count"] += 1
+            row["marks_total"] += float(grade.marks_obtained)
+
+            total = float(grade.exam.total_marks)
+            if total > 0:
+                row["percentage_total"] += (
+                    float(grade.marks_obtained) / total * 100
+                )
+
+        result = []
+        for row in summaries.values():
+            count = row["grade_count"]
+            result.append({
+                "student_id": row["student_id"],
+                "student_name": row["student_name"],
+                "exam_count": len(row["exam_ids"]),
+                "grade_count": count,
+                "average_marks": round(row["marks_total"] / count, 2),
+                "average_percentage": round(
+                    row["percentage_total"] / count, 2
+                ),
+            })
+
+        return Response(
+            sorted(result, key=lambda item: item["student_id"])
+        )
+
+    @action(detail=False, methods=["get"], url_path="class-summary")
+    def class_summary(self, request):
+        grades = self.get_queryset().select_related(
+            "student", "exam", "exam__school_class"
+        )
+        summaries = {}
+
+        for grade in grades:
+            school_class = grade.exam.school_class
+            class_id = school_class.id
+
+            if class_id not in summaries:
+                summaries[class_id] = {
+                    "class_id": class_id,
+                    "class_name": school_class.name,
+                    "section": school_class.section,
+                    "student_ids": set(),
+                    "exam_ids": set(),
+                    "grade_count": 0,
+                    "marks_total": 0.0,
+                    "percentage_total": 0.0,
+                }
+
+            row = summaries[class_id]
+            row["student_ids"].add(grade.student_id)
+            row["exam_ids"].add(grade.exam_id)
+            row["grade_count"] += 1
+            row["marks_total"] += float(grade.marks_obtained)
+
+            total = float(grade.exam.total_marks)
+            if total > 0:
+                row["percentage_total"] += (
+                    float(grade.marks_obtained) / total * 100
+                )
+
+        result = []
+        for row in summaries.values():
+            count = row["grade_count"]
+            result.append({
+                "class_id": row["class_id"],
+                "class_name": row["class_name"],
+                "section": row["section"],
+                "student_count": len(row["student_ids"]),
+                "exam_count": len(row["exam_ids"]),
+                "grade_count": count,
+                "average_marks": round(row["marks_total"] / count, 2),
+                "average_percentage": round(
+                    row["percentage_total"] / count, 2
+                ),
+            })
+
+        return Response(
+            sorted(result, key=lambda item: item["class_id"])
+        )
 
 
 class AttendanceViewSet(viewsets.ModelViewSet):

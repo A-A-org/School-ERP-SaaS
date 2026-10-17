@@ -1350,3 +1350,70 @@ class RoleBasedAccessTests(TestCase):
                 date="2026-10-14",
             ).exists()
         )
+    def test_student_summary_calculates_average_and_is_school_scoped(self):
+        class_a = SchoolClass.objects.create(
+            name="Summary A",
+            section="A",
+            school=self.school_a,
+        )
+        class_b = SchoolClass.objects.create(
+            name="Summary B",
+            section="B",
+            school=self.school_b,
+        )
+
+        self.student_a.school_class = class_a
+        self.student_a.save()
+        self.student_b.school_class = class_b
+        self.student_b.save()
+
+        subject_a = Subject.objects.create(
+            name="Math A",
+            code="SUM-MA",
+            school=self.school_a,
+        )
+        subject_b = Subject.objects.create(
+            name="Math B",
+            code="SUM-MB",
+            school=self.school_b,
+        )
+
+        exam_a = Exam.objects.create(
+            title="Summary Exam A",
+            school=self.school_a,
+            school_class=class_a,
+            subject=subject_a,
+            exam_date="2026-10-14",
+            total_marks="100.00",
+        )
+        exam_b = Exam.objects.create(
+            title="Summary Exam B",
+            school=self.school_b,
+            school_class=class_b,
+            subject=subject_b,
+            exam_date="2026-10-14",
+            total_marks="100.00",
+        )
+
+        Grade.objects.create(
+            exam=exam_a,
+            student=self.student_a,
+            marks_obtained="80.00",
+        )
+        Grade.objects.create(
+            exam=exam_b,
+            student=self.student_b,
+            marks_obtained="99.00",
+        )
+
+        self.client.force_authenticate(user=self.school_admin)
+        response = self.client.get("/api/reports/student-summary/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(
+            response.data[0]["student_id"],
+            self.student_a.id,
+        )
+        self.assertEqual(response.data[0]["average_marks"], 80.0)
+        self.assertEqual(response.data[0]["average_percentage"], 80.0)
