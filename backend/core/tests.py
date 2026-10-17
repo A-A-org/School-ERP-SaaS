@@ -1679,3 +1679,37 @@ class RoleBasedAccessTests(TestCase):
         self.assertEqual(response.data["present_count"], 0)
         self.assertEqual(response.data["absent_count"], 1)
         self.assertEqual(response.data["late_count"], 0)
+    def test_financial_summary_filters_by_payment_date_range(self):
+        Fee.objects.create(
+            amount="120.00",
+            payment_date="2026-10-10",
+            status="paid",
+            student=self.student_a,
+        )
+        Fee.objects.create(
+            amount="80.00",
+            payment_date="2026-10-14",
+            status="paid",
+            student=self.student_a,
+        )
+        Fee.objects.create(
+            amount="60.00",
+            payment_date="2026-10-20",
+            status="paid",
+            student=self.student_a,
+        )
+
+        self.client.force_authenticate(user=self.school_admin)
+
+        response = self.client.get(
+            "/api/fees/financial-summary/"
+            "?date_from=2026-10-12&date_to=2026-10-18"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["fee_count"], 1)
+        self.assertEqual(response.data["paid_count"], 1)
+        self.assertEqual(response.data["unpaid_count"], 0)
+        self.assertEqual(response.data["total_amount"], 80.0)
+        self.assertEqual(response.data["paid_amount"], 80.0)
+        self.assertEqual(response.data["unpaid_amount"], 0.0)
