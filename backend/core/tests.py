@@ -1417,3 +1417,68 @@ class RoleBasedAccessTests(TestCase):
         )
         self.assertEqual(response.data[0]["average_marks"], 80.0)
         self.assertEqual(response.data[0]["average_percentage"], 80.0)
+
+    def test_class_summary_calculates_average_and_is_school_scoped(self):
+        class_a = SchoolClass.objects.create(
+            name="Average Class A",
+            section="A",
+            school=self.school_a,
+        )
+        class_b = SchoolClass.objects.create(
+            name="Average Class B",
+            section="B",
+            school=self.school_b,
+        )
+
+        self.student_a.school_class = class_a
+        self.student_a.save()
+        self.student_b.school_class = class_b
+        self.student_b.save()
+
+        subject_a = Subject.objects.create(
+            name="Math A",
+            code="CLASS-AVG-A",
+            school=self.school_a,
+        )
+        subject_b = Subject.objects.create(
+            name="Math B",
+            code="CLASS-AVG-B",
+            school=self.school_b,
+        )
+
+        exam_a = Exam.objects.create(
+            title="Average Exam A",
+            school=self.school_a,
+            school_class=class_a,
+            subject=subject_a,
+            exam_date="2026-10-14",
+            total_marks="100.00",
+        )
+        exam_b = Exam.objects.create(
+            title="Average Exam B",
+            school=self.school_b,
+            school_class=class_b,
+            subject=subject_b,
+            exam_date="2026-10-14",
+            total_marks="100.00",
+        )
+
+        Grade.objects.create(
+            exam=exam_a,
+            student=self.student_a,
+            marks_obtained="75.00",
+        )
+        Grade.objects.create(
+            exam=exam_b,
+            student=self.student_b,
+            marks_obtained="95.00",
+        )
+
+        self.client.force_authenticate(user=self.school_admin)
+        response = self.client.get("/api/reports/class-summary/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["class_id"], class_a.id)
+        self.assertEqual(response.data[0]["student_count"], 1)
+        self.assertEqual(response.data[0]["average_percentage"], 75.0)
