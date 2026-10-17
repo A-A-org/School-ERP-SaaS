@@ -122,6 +122,15 @@ class FeeViewSet(viewsets.ModelViewSet):
     def financial_summary(self, request):
         fees = self.get_queryset()
 
+        date_from = request.query_params.get("date_from")
+        date_to = request.query_params.get("date_to")
+
+        if date_from:
+            fees = fees.filter(payment_date__gte=date_from)
+
+        if date_to:
+            fees = fees.filter(payment_date__lte=date_to)
+
         summary = {
             "fee_count": 0,
             "paid_count": 0,
