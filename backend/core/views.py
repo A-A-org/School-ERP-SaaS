@@ -353,6 +353,14 @@ class AttendanceViewSet(viewsets.ModelViewSet):
     def attendance_summary(self, request):
         records = self.get_queryset()
 
+        date_from = request.query_params.get("date_from")
+        date_to = request.query_params.get("date_to")
+
+        if date_from:
+            records = records.filter(date__gte=date_from)
+        if date_to:
+            records = records.filter(date__lte=date_to)
+
         summary = {
             "record_count": 0,
             "present_count": 0,
