@@ -31,7 +31,7 @@ class RoleBasedPermission(BasePermission):
             'Exam': ALL_ACTIONS,
             'Grade': ALL_ACTIONS | {'student_summary', 'class_summary'},            'Student': ALL_ACTIONS,
             'Employee': ALL_ACTIONS,
-            'Fee': ALL_ACTIONS,
+            'Fee': ALL_ACTIONS | {'financial_summary'},
             'Attendance': ALL_ACTIONS,
         },
 
@@ -43,7 +43,7 @@ class RoleBasedPermission(BasePermission):
             'Grade': ALL_ACTIONS | {'student_summary', 'class_summary'},
             'Student': ALL_ACTIONS,
             'Employee': ALL_ACTIONS,
-            'Fee': ALL_ACTIONS,
+            'Fee': ALL_ACTIONS | {'financial_summary'},
             'Attendance': ALL_ACTIONS,
             'User': ALL_ACTIONS,
         },

@@ -1,4 +1,4 @@
-from rest_framework import viewsets
+﻿from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
@@ -118,6 +118,37 @@ class FeeViewSet(viewsets.ModelViewSet):
             return Fee.objects.filter(student__school=user.school)
 
         return Fee.objects.none()
+    @action(detail=False, methods=["get"], url_path="financial-summary")
+    def financial_summary(self, request):
+        fees = self.get_queryset()
+
+        summary = {
+            "fee_count": 0,
+            "paid_count": 0,
+            "unpaid_count": 0,
+            "total_amount": 0.0,
+            "paid_amount": 0.0,
+            "unpaid_amount": 0.0,
+        }
+
+        for fee in fees:
+            amount = float(fee.amount)
+
+            summary["fee_count"] += 1
+            summary["total_amount"] += amount
+
+            if fee.status == "paid":
+                summary["paid_count"] += 1
+                summary["paid_amount"] += amount
+            elif fee.status == "unpaid":
+                summary["unpaid_count"] += 1
+                summary["unpaid_amount"] += amount
+
+        summary["total_amount"] = round(summary["total_amount"], 2)
+        summary["paid_amount"] = round(summary["paid_amount"], 2)
+        summary["unpaid_amount"] = round(summary["unpaid_amount"], 2)
+
+        return Response(summary)
 
 
 
