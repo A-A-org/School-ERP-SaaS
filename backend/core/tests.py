@@ -1624,3 +1624,29 @@ class RoleBasedAccessTests(TestCase):
         self.assertEqual(response.data["total_amount"], 200.0)
         self.assertEqual(response.data["paid_amount"], 120.0)
         self.assertEqual(response.data["unpaid_amount"], 80.0)
+    def test_attendance_summary_only_counts_own_school_records(self):
+        Attendance.objects.create(
+            date="2026-10-14",
+            status="present",
+            student=self.student_a,
+        )
+        Attendance.objects.create(
+            date="2026-10-15",
+            status="absent",
+            student=self.student_a,
+        )
+        Attendance.objects.create(
+            date="2026-10-14",
+            status="late",
+            student=self.student_b,
+        )
+
+        self.client.force_authenticate(user=self.school_admin)
+
+        response = self.client.get("/api/attendance/summary/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["record_count"], 2)
+        self.assertEqual(response.data["present_count"], 1)
+        self.assertEqual(response.data["absent_count"], 1)
+        self.assertEqual(response.data["late_count"], 0)

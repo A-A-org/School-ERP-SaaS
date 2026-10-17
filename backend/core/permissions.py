@@ -32,7 +32,7 @@ class RoleBasedPermission(BasePermission):
             'Grade': ALL_ACTIONS | {'student_summary', 'class_summary'},            'Student': ALL_ACTIONS,
             'Employee': ALL_ACTIONS,
             'Fee': ALL_ACTIONS | {'financial_summary'},
-            'Attendance': ALL_ACTIONS,
+            'Attendance': ALL_ACTIONS | {'attendance_summary'},
         },
 
         'school_admin': {
@@ -44,7 +44,7 @@ class RoleBasedPermission(BasePermission):
             'Student': ALL_ACTIONS,
             'Employee': ALL_ACTIONS,
             'Fee': ALL_ACTIONS | {'financial_summary'},
-            'Attendance': ALL_ACTIONS,
+            'Attendance': ALL_ACTIONS | {'attendance_summary'},
             'User': ALL_ACTIONS,
         },
 
@@ -54,7 +54,7 @@ class RoleBasedPermission(BasePermission):
             'Exam': READ_ACTIONS,
             'Grade': READ_ACTIONS | {'student_summary', 'class_summary'},
             'Student': READ_ACTIONS,
-           'Attendance': READ_ACTIONS | {'create'},
+           'Attendance': READ_ACTIONS | {'create', 'attendance_summary'},
         },
     }
 

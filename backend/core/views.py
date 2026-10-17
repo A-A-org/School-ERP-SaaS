@@ -1,4 +1,4 @@
-﻿from rest_framework import viewsets
+from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
@@ -339,10 +339,35 @@ class AttendanceViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
 
-        if user.role == 'platform_owner':
+        if user.role == "platform_owner":
             return Attendance.objects.all()
 
         if user.school_id:
-            return Attendance.objects.filter(student__school=user.school)
+            return Attendance.objects.filter(
+                student__school=user.school
+            )
 
         return Attendance.objects.none()
+
+    @action(detail=False, methods=["get"], url_path="summary")
+    def attendance_summary(self, request):
+        records = self.get_queryset()
+
+        summary = {
+            "record_count": 0,
+            "present_count": 0,
+            "absent_count": 0,
+            "late_count": 0,
+        }
+
+        for record in records:
+            summary["record_count"] += 1
+
+            if record.status == "present":
+                summary["present_count"] += 1
+            elif record.status == "absent":
+                summary["absent_count"] += 1
+            elif record.status == "late":
+                summary["late_count"] += 1
+
+        return Response(summary)
