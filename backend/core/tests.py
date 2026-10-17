@@ -1713,3 +1713,25 @@ class RoleBasedAccessTests(TestCase):
         self.assertEqual(response.data["total_amount"], 80.0)
         self.assertEqual(response.data["paid_amount"], 80.0)
         self.assertEqual(response.data["unpaid_amount"], 0.0)
+
+    def test_financial_summary_rejects_invalid_date_range(self):
+        self.client.force_authenticate(user=self.school_admin)
+
+        invalid_date_response = self.client.get(
+            "/api/fees/financial-summary/?date_from=2026-15-40"
+        )
+
+        self.assertEqual(
+            invalid_date_response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+
+        reversed_date_response = self.client.get(
+            "/api/fees/financial-summary/"
+            "?date_from=2026-10-20&date_to=2026-10-01"
+        )
+
+        self.assertEqual(
+            reversed_date_response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )

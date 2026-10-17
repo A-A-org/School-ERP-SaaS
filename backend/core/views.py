@@ -1,6 +1,7 @@
 from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from django.utils.dateparse import parse_date
 
 from .models import School, User, SchoolClass, Student, Employee, Fee, Attendance, Subject, Exam, Grade
 from .permissions import RoleBasedPermission
@@ -125,11 +126,42 @@ class FeeViewSet(viewsets.ModelViewSet):
         date_from = request.query_params.get("date_from")
         date_to = request.query_params.get("date_to")
 
-        if date_from:
-            fees = fees.filter(payment_date__gte=date_from)
+        try:
+            parsed_date_from = parse_date(date_from) if date_from else None
+            parsed_date_to = parse_date(date_to) if date_to else None
+        except ValueError:
+            return Response(
+                {"error": "Dates must be valid and use YYYY-MM-DD format."},
+                status=400,
+            )
 
-        if date_to:
-            fees = fees.filter(payment_date__lte=date_to)
+        if date_from and parsed_date_from is None:
+            return Response(
+                {"error": "date_from must use YYYY-MM-DD format."},
+                status=400,
+            )
+
+        if date_to and parsed_date_to is None:
+            return Response(
+                {"error": "date_to must use YYYY-MM-DD format."},
+                status=400,
+            )
+
+        if (
+            parsed_date_from
+            and parsed_date_to
+            and parsed_date_from > parsed_date_to
+        ):
+            return Response(
+                {"error": "date_from must be on or before date_to."},
+                status=400,
+            )
+
+        if parsed_date_from:
+            fees = fees.filter(payment_date__gte=parsed_date_from)
+
+        if parsed_date_to:
+            fees = fees.filter(payment_date__lte=parsed_date_to)
 
         summary = {
             "fee_count": 0,
