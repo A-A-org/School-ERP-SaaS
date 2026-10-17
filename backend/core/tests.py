@@ -1650,3 +1650,32 @@ class RoleBasedAccessTests(TestCase):
         self.assertEqual(response.data["present_count"], 1)
         self.assertEqual(response.data["absent_count"], 1)
         self.assertEqual(response.data["late_count"], 0)
+    def test_attendance_summary_filters_by_date_range(self):
+        Attendance.objects.create(
+            date="2026-10-10",
+            status="present",
+            student=self.student_a,
+        )
+        Attendance.objects.create(
+            date="2026-10-14",
+            status="absent",
+            student=self.student_a,
+        )
+        Attendance.objects.create(
+            date="2026-10-20",
+            status="late",
+            student=self.student_a,
+        )
+
+        self.client.force_authenticate(user=self.school_admin)
+
+        response = self.client.get(
+            "/api/attendance/summary/"
+            "?date_from=2026-10-12&date_to=2026-10-18"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["record_count"], 1)
+        self.assertEqual(response.data["present_count"], 0)
+        self.assertEqual(response.data["absent_count"], 1)
+        self.assertEqual(response.data["late_count"], 0)
