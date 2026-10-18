@@ -1,11 +1,21 @@
+from django.utils.dateparse import parse_date
 from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from django.utils.dateparse import parse_date
 
-from .models import School, User, SchoolClass, Student, Employee, Fee, Attendance, Subject, Exam, Grade
+from .models import (
+    School,
+    User,
+    SchoolClass,
+    Student,
+    Employee,
+    Fee,
+    Attendance,
+    Subject,
+    Exam,
+    Grade,
+)
 from .permissions import RoleBasedPermission
-
 from .serializers import (
     SchoolSerializer,
     UserSerializer,
@@ -21,7 +31,6 @@ from .serializers import (
 )
 
 
-
 class SchoolViewSet(viewsets.ModelViewSet):
     queryset = School.objects.all()
     serializer_class = SchoolSerializer
@@ -30,7 +39,7 @@ class SchoolViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
 
-        if user.role == 'platform_owner':
+        if user.role == "platform_owner":
             return School.objects.all()
 
         if user.school_id:
@@ -47,13 +56,13 @@ class UserViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
 
-        if user.role == 'platform_owner':
+        if user.role == "platform_owner":
             return User.objects.all()
 
-        if user.role == 'school_admin' and user.school_id:
+        if user.role == "school_admin" and user.school_id:
             return User.objects.filter(
                 school=user.school,
-                role='employee'
+                role="employee",
             )
 
         return User.objects.none()
@@ -67,10 +76,15 @@ class SchoolClassViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
 
-        if user.role == 'platform_owner':
+        if user.role == "platform_owner":
             return SchoolClass.objects.all()
 
-        return SchoolClass.objects.filter(school=user.school)
+        if user.school_id:
+            return SchoolClass.objects.filter(
+                school_id=user.school_id
+            )
+
+        return SchoolClass.objects.none()
 
 
 class StudentViewSet(viewsets.ModelViewSet):
@@ -81,10 +95,15 @@ class StudentViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
 
-        if user.role == 'platform_owner':
+        if user.role == "platform_owner":
             return Student.objects.all()
 
-        return Student.objects.filter(school=user.school)
+        if user.school_id:
+            return Student.objects.filter(
+                school_id=user.school_id
+            )
+
+        return Student.objects.none()
 
 
 class EmployeeViewSet(viewsets.ModelViewSet):
@@ -95,11 +114,13 @@ class EmployeeViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
 
-        if user.role == 'platform_owner':
+        if user.role == "platform_owner":
             return Employee.objects.all()
 
         if user.school_id:
-            return Employee.objects.filter(school=user.school)
+            return Employee.objects.filter(
+                school=user.school
+            )
 
         return Employee.objects.none()
 
@@ -112,14 +133,21 @@ class FeeViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
 
-        if user.role == 'platform_owner':
+        if user.role == "platform_owner":
             return Fee.objects.all()
 
         if user.school_id:
-            return Fee.objects.filter(student__school=user.school)
+            return Fee.objects.filter(
+                student__school=user.school
+            )
 
         return Fee.objects.none()
-    @action(detail=False, methods=["get"], url_path="financial-summary")
+
+    @action(
+        detail=False,
+        methods=["get"],
+        url_path="financial-summary",
+    )
     def financial_summary(self, request):
         fees = self.get_queryset()
 
@@ -127,23 +155,39 @@ class FeeViewSet(viewsets.ModelViewSet):
         date_to = request.query_params.get("date_to")
 
         try:
-            parsed_date_from = parse_date(date_from) if date_from else None
-            parsed_date_to = parse_date(date_to) if date_to else None
+            parsed_date_from = (
+                parse_date(date_from) if date_from else None
+            )
+            parsed_date_to = (
+                parse_date(date_to) if date_to else None
+            )
         except ValueError:
             return Response(
-                {"error": "Dates must be valid and use YYYY-MM-DD format."},
+                {
+                    "error": (
+                        "Dates must be valid and use YYYY-MM-DD format."
+                    )
+                },
                 status=400,
             )
 
         if date_from and parsed_date_from is None:
             return Response(
-                {"error": "date_from must use YYYY-MM-DD format."},
+                {
+                    "error": (
+                        "date_from must use YYYY-MM-DD format."
+                    )
+                },
                 status=400,
             )
 
         if date_to and parsed_date_to is None:
             return Response(
-                {"error": "date_to must use YYYY-MM-DD format."},
+                {
+                    "error": (
+                        "date_to must use YYYY-MM-DD format."
+                    )
+                },
                 status=400,
             )
 
@@ -153,15 +197,23 @@ class FeeViewSet(viewsets.ModelViewSet):
             and parsed_date_from > parsed_date_to
         ):
             return Response(
-                {"error": "date_from must be on or before date_to."},
+                {
+                    "error": (
+                        "date_from must be on or before date_to."
+                    )
+                },
                 status=400,
             )
 
         if parsed_date_from:
-            fees = fees.filter(payment_date__gte=parsed_date_from)
+            fees = fees.filter(
+                payment_date__gte=parsed_date_from
+            )
 
         if parsed_date_to:
-            fees = fees.filter(payment_date__lte=parsed_date_to)
+            fees = fees.filter(
+                payment_date__lte=parsed_date_to
+            )
 
         summary = {
             "fee_count": 0,
@@ -185,12 +237,17 @@ class FeeViewSet(viewsets.ModelViewSet):
                 summary["unpaid_count"] += 1
                 summary["unpaid_amount"] += amount
 
-        summary["total_amount"] = round(summary["total_amount"], 2)
-        summary["paid_amount"] = round(summary["paid_amount"], 2)
-        summary["unpaid_amount"] = round(summary["unpaid_amount"], 2)
+        summary["total_amount"] = round(
+            summary["total_amount"], 2
+        )
+        summary["paid_amount"] = round(
+            summary["paid_amount"], 2
+        )
+        summary["unpaid_amount"] = round(
+            summary["unpaid_amount"], 2
+        )
 
         return Response(summary)
-
 
 
 class SubjectViewSet(viewsets.ModelViewSet):
@@ -200,10 +257,15 @@ class SubjectViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
+
         if user.role == "platform_owner":
             return Subject.objects.all()
+
         if user.school_id:
-            return Subject.objects.filter(school_id=user.school_id)
+            return Subject.objects.filter(
+                school_id=user.school_id
+            )
+
         return Subject.objects.none()
 
 
@@ -214,10 +276,15 @@ class ExamViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
+
         if user.role == "platform_owner":
             return Exam.objects.all()
+
         if user.school_id:
-            return Exam.objects.filter(school_id=user.school_id)
+            return Exam.objects.filter(
+                school_id=user.school_id
+            )
+
         return Exam.objects.none()
 
 
@@ -228,18 +295,26 @@ class GradeViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
+
         if user.role == "platform_owner":
-            return Grade.objects.select_related("exam", "student")
+            return Grade.objects.select_related(
+                "exam", "student"
+            )
+
         if user.school_id:
             return Grade.objects.filter(
                 exam__school_id=user.school_id
             ).select_related("exam", "student")
+
         return Grade.objects.none()
 
 
 class ReportViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Grade.objects.select_related(
-        "exam", "exam__subject", "exam__school_class", "student"
+        "exam",
+        "exam__subject",
+        "exam__school_class",
+        "student",
     )
     serializer_class = GradeReportSerializer
     permission_classes = [RoleBasedPermission]
@@ -251,24 +326,41 @@ class ReportViewSet(viewsets.ReadOnlyModelViewSet):
         if user.role != "platform_owner":
             if not user.school_id:
                 return queryset.none()
-            queryset = queryset.filter(exam__school_id=user.school_id)
+
+            queryset = queryset.filter(
+                exam__school_id=user.school_id
+            )
 
         exam_id = self.request.query_params.get("exam_id")
         student_id = self.request.query_params.get("student_id")
         class_id = self.request.query_params.get("class_id")
 
         if exam_id and exam_id.isdigit():
-            queryset = queryset.filter(exam_id=int(exam_id))
+            queryset = queryset.filter(
+                exam_id=int(exam_id)
+            )
+
         if student_id and student_id.isdigit():
-            queryset = queryset.filter(student_id=int(student_id))
+            queryset = queryset.filter(
+                student_id=int(student_id)
+            )
+
         if class_id and class_id.isdigit():
-            queryset = queryset.filter(exam__school_class_id=int(class_id))
+            queryset = queryset.filter(
+                exam__school_class_id=int(class_id)
+            )
 
         return queryset
 
-    @action(detail=False, methods=["get"], url_path="student-summary")
+    @action(
+        detail=False,
+        methods=["get"],
+        url_path="student-summary",
+    )
     def student_summary(self, request):
-        grades = self.get_queryset().select_related("student", "exam")
+        grades = self.get_queryset().select_related(
+            "student", "exam"
+        )
         summaries = {}
 
         for grade in grades:
@@ -290,36 +382,54 @@ class ReportViewSet(viewsets.ReadOnlyModelViewSet):
             row = summaries[student_id]
             row["exam_ids"].add(grade.exam_id)
             row["grade_count"] += 1
-            row["marks_total"] += float(grade.marks_obtained)
+            row["marks_total"] += float(
+                grade.marks_obtained
+            )
 
             total = float(grade.exam.total_marks)
+
             if total > 0:
                 row["percentage_total"] += (
-                    float(grade.marks_obtained) / total * 100
+                    float(grade.marks_obtained)
+                    / total
+                    * 100
                 )
 
         result = []
+
         for row in summaries.values():
             count = row["grade_count"]
+
             result.append({
                 "student_id": row["student_id"],
                 "student_name": row["student_name"],
                 "exam_count": len(row["exam_ids"]),
                 "grade_count": count,
-                "average_marks": round(row["marks_total"] / count, 2),
+                "average_marks": round(
+                    row["marks_total"] / count, 2
+                ),
                 "average_percentage": round(
                     row["percentage_total"] / count, 2
                 ),
             })
 
         return Response(
-            sorted(result, key=lambda item: item["student_id"])
+            sorted(
+                result,
+                key=lambda item: item["student_id"],
+            )
         )
 
-    @action(detail=False, methods=["get"], url_path="class-summary")
+    @action(
+        detail=False,
+        methods=["get"],
+        url_path="class-summary",
+    )
     def class_summary(self, request):
         grades = self.get_queryset().select_related(
-            "student", "exam", "exam__school_class"
+            "student",
+            "exam",
+            "exam__school_class",
         )
         summaries = {}
 
@@ -343,17 +453,24 @@ class ReportViewSet(viewsets.ReadOnlyModelViewSet):
             row["student_ids"].add(grade.student_id)
             row["exam_ids"].add(grade.exam_id)
             row["grade_count"] += 1
-            row["marks_total"] += float(grade.marks_obtained)
+            row["marks_total"] += float(
+                grade.marks_obtained
+            )
 
             total = float(grade.exam.total_marks)
+
             if total > 0:
                 row["percentage_total"] += (
-                    float(grade.marks_obtained) / total * 100
+                    float(grade.marks_obtained)
+                    / total
+                    * 100
                 )
 
         result = []
+
         for row in summaries.values():
             count = row["grade_count"]
+
             result.append({
                 "class_id": row["class_id"],
                 "class_name": row["class_name"],
@@ -361,14 +478,19 @@ class ReportViewSet(viewsets.ReadOnlyModelViewSet):
                 "student_count": len(row["student_ids"]),
                 "exam_count": len(row["exam_ids"]),
                 "grade_count": count,
-                "average_marks": round(row["marks_total"] / count, 2),
+                "average_marks": round(
+                    row["marks_total"] / count, 2
+                ),
                 "average_percentage": round(
                     row["percentage_total"] / count, 2
                 ),
             })
 
         return Response(
-            sorted(result, key=lambda item: item["class_id"])
+            sorted(
+                result,
+                key=lambda item: item["class_id"],
+            )
         )
 
 
@@ -385,22 +507,82 @@ class AttendanceViewSet(viewsets.ModelViewSet):
 
         if user.school_id:
             return Attendance.objects.filter(
-                student__school=user.school
+                student__school_id=user.school_id
             )
 
         return Attendance.objects.none()
 
-    @action(detail=False, methods=["get"], url_path="summary")
+    @action(
+        detail=False,
+        methods=["get"],
+        url_path="summary",
+    )
     def attendance_summary(self, request):
         records = self.get_queryset()
 
         date_from = request.query_params.get("date_from")
         date_to = request.query_params.get("date_to")
 
-        if date_from:
-            records = records.filter(date__gte=date_from)
-        if date_to:
-            records = records.filter(date__lte=date_to)
+        try:
+            parsed_date_from = (
+                parse_date(date_from) if date_from else None
+            )
+            parsed_date_to = (
+                parse_date(date_to) if date_to else None
+            )
+        except ValueError:
+            return Response(
+                {
+                    "error": (
+                        "Dates must be valid and use YYYY-MM-DD format."
+                    )
+                },
+                status=400,
+            )
+
+        if date_from and parsed_date_from is None:
+            return Response(
+                {
+                    "error": (
+                        "date_from must use YYYY-MM-DD format."
+                    )
+                },
+                status=400,
+            )
+
+        if date_to and parsed_date_to is None:
+            return Response(
+                {
+                    "error": (
+                        "date_to must use YYYY-MM-DD format."
+                    )
+                },
+                status=400,
+            )
+
+        if (
+            parsed_date_from
+            and parsed_date_to
+            and parsed_date_from > parsed_date_to
+        ):
+            return Response(
+                {
+                    "error": (
+                        "date_from must be on or before date_to."
+                    )
+                },
+                status=400,
+            )
+
+        if parsed_date_from:
+            records = records.filter(
+                date__gte=parsed_date_from
+            )
+
+        if parsed_date_to:
+            records = records.filter(
+                date__lte=parsed_date_to
+            )
 
         summary = {
             "record_count": 0,
