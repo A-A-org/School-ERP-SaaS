@@ -1735,3 +1735,20 @@ class RoleBasedAccessTests(TestCase):
             reversed_date_response.status_code,
             status.HTTP_400_BAD_REQUEST,
         )
+    def test_school_admin_cannot_retrieve_other_school_attendance(self):
+        other_attendance = Attendance.objects.create(
+            date="2026-10-14",
+            status="present",
+            student=self.student_b,
+        )
+
+        self.client.force_authenticate(user=self.school_admin)
+
+        response = self.client.get(
+            f"/api/attendance/{other_attendance.id}/"
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_404_NOT_FOUND,
+        )
