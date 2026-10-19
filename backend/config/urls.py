@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.urls import path, include
-from rest_framework_simplejwt.views import TokenObtainPairView
+from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
 
 urlpatterns = [
@@ -27,4 +27,16 @@ urlpatterns = [
         TokenObtainPairView.as_view(),
         name='token_obtain_pair'
     ),
+
+    path(
+        'api/auth/refresh/',
+        TokenRefreshView.as_view(),
+        name='token_refresh'
+    ),
+
+    path(
+        'api/academics/',
+        include('academics.urls')
+    ),
+
 ]
