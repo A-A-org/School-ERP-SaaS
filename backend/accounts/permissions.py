@@ -1,5 +1,4 @@
 from rest_framework.permissions import BasePermission, SAFE_METHODS
-
 class IsOwner(BasePermission):
     """
     Allow access only for Platform Owner
@@ -71,6 +70,56 @@ class StudentAccessPermission(BasePermission):
     """
 
     def has_permission(self, request, view):
+        if not request.user.is_authenticated:
+            return False
+
+        if request.method in SAFE_METHODS:
+            return request.user.role in [
+                "OWNER",
+                "ADMIN",
+                "ACCOUNTANT",
+                "TEACHER",
+                "EMPLOYEE",
+            ]
+
+        return request.user.role in [
+            "OWNER",
+            "ADMIN",
+        ]
+class TeacherAccessPermission(BasePermission):
+     """
+     All authenticated school staff can view teachers.
+     Only OWNER and ADMIN can create, update, or delete teachers.
+     """
+  
+     def has_permission(self, request, view):
+
+        if not request.user.is_authenticated:
+            return False
+
+        if request.method in SAFE_METHODS:
+            return request.user.role in [
+                "OWNER",
+                "ADMIN",
+                "ACCOUNTANT",
+                "TEACHER",
+                "EMPLOYEE",
+            ]
+
+        return request.user.role in [
+            "OWNER",
+            "ADMIN",
+        ]
+
+
+class ClassroomAccessPermission(BasePermission):
+    """
+    All authenticated school staff can view classes.
+    Only OWNER and ADMIN can create, update, or delete classes.
+    """
+
+    def has_permission(self, request, view):
+
         if not request.user.is_authenticated:
             return False
 

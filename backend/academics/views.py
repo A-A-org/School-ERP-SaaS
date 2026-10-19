@@ -1,26 +1,68 @@
-from rest_framework import generics
+from django.db.models import Count
 
-from accounts.permissions import IsSchoolStaff
+from rest_framework import (
+    generics,
+    status,
+)
 
-from .models import ClassRoom, Exam
+from rest_framework.response import Response
+
+from accounts.permissions import (
+    IsSchoolStaff,
+    ClassroomAccessPermission,
+)
+
+from .models import (
+    ClassRoom,
+    Exam,
+)
+
 from .serializers import (
     ClassRoomSerializer,
     ExamSerializer,
 )
 
 
+def classroom_queryset():
+
+    return (
+        ClassRoom.objects
+        .select_related("school")
+        .annotate(
+            student_count=Count(
+                "students",
+                distinct=True
+            ),
+            teacher_count=Count(
+                "teachers",
+                distinct=True
+            ),
+            subject_count=Count(
+                "subjects",
+                distinct=True
+            ),
+            exam_count=Count(
+                "exams",
+                distinct=True
+            ),
+        )
+    )
+
+
 # ==========================
 # Classrooms
 # ==========================
 
-class ClassRoomListView(
-    generics.ListAPIView
+class ClassRoomListCreateView(
+    generics.ListCreateAPIView
 ):
 
-    serializer_class = ClassRoomSerializer
+    serializer_class = (
+        ClassRoomSerializer
+    )
 
     permission_classes = [
-        IsSchoolStaff
+        ClassroomAccessPermission
     ]
 
 
@@ -28,16 +70,91 @@ class ClassRoomListView(
 
         user = self.request.user
 
-        # Platform owner can see all classes
+        queryset = classroom_queryset()
+
+
         if user.role == "OWNER":
 
-            return ClassRoom.objects.all()
+            return queryset
 
 
-        # School users can only see
-        # classes from their own school
-        return ClassRoom.objects.filter(
+        if not user.school_id:
+
+            return ClassRoom.objects.none()
+
+
+        return queryset.filter(
             school=user.school
+        )
+
+
+class ClassRoomDetailView(
+    generics.RetrieveUpdateDestroyAPIView
+):
+
+    serializer_class = (
+        ClassRoomSerializer
+    )
+
+    permission_classes = [
+        ClassroomAccessPermission
+    ]
+
+
+    def get_queryset(self):
+
+        user = self.request.user
+
+        queryset = classroom_queryset()
+
+
+        if user.role == "OWNER":
+
+            return queryset
+
+
+        if not user.school_id:
+
+            return ClassRoom.objects.none()
+
+
+        return queryset.filter(
+            school=user.school
+        )
+
+
+    def destroy(
+        self,
+        request,
+        *args,
+        **kwargs
+    ):
+
+        classroom = self.get_object()
+
+
+        # Important:
+        # Never cascade-delete active school data
+        if (
+            classroom.students.exists()
+            or classroom.teachers.exists()
+            or classroom.subjects.exists()
+            or classroom.exams.exists()
+        ):
+
+            return Response(
+                {
+                    "detail":
+                    "This class cannot be deleted while it has students, teachers, subjects, or exams."
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+
+        return super().destroy(
+            request,
+            *args,
+            **kwargs
         )
 
 
@@ -60,14 +177,26 @@ class ExamListView(
 
         user = self.request.user
 
-        # Platform owner can see all exams
+
+        queryset = (
+            Exam.objects
+            .select_related(
+                "classroom",
+                "classroom__school"
+            )
+        )
+
+
         if user.role == "OWNER":
 
-            return Exam.objects.all()
+            return queryset
 
 
-        # School users can only see exams
-        # from their own school
-        return Exam.objects.filter(
+        if not user.school_id:
+
+            return Exam.objects.none()
+
+
+        return queryset.filter(
             classroom__school=user.school
         )

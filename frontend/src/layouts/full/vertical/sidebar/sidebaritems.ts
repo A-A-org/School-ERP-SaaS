@@ -66,24 +66,24 @@ const SidebarContent: MenuItem[] = [
     ],
   },
 
-  {
-    heading: "PEOPLE",
-    items: [
-      {
-        id: uniqueId(),
-        name: "Students",
-        icon: GraduationCap,
-        url: "/students",
-      },
-      {
-        id: uniqueId(),
-        name: "Teachers",
-        icon: Users,
-        url: "/teachers",
-        disabled: true,
-      },
-    ],
-  },
+  
+{
+  heading: "PEOPLE",
+  items: [
+    {
+      id: uniqueId(),
+      name: "Students",
+      icon: GraduationCap,
+      url: "/students",
+    },
+    {
+      id: uniqueId(),
+      name: "Teachers",
+      icon: Users,
+      url: "/teachers",
+    },
+  ],
+},
 
   {
     heading: "ACADEMIC",
@@ -93,7 +93,6 @@ const SidebarContent: MenuItem[] = [
         name: "Classes",
         icon: School,
         url: "/classes",
-        disabled: true,
       },
       {
         id: uniqueId(),

@@ -1,7 +1,8 @@
 from django.urls import path
 
 from .views import (
-    ClassRoomListView,
+    ClassRoomListCreateView,
+    ClassRoomDetailView,
     ExamListView,
 )
 
@@ -10,8 +11,14 @@ urlpatterns = [
 
     path(
         "classes/",
-        ClassRoomListView.as_view(),
-        name="classroom-list"
+        ClassRoomListCreateView.as_view(),
+        name="classroom-list-create"
+    ),
+
+    path(
+        "classes/<int:pk>/",
+        ClassRoomDetailView.as_view(),
+        name="classroom-detail"
     ),
 
     path(
