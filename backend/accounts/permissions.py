@@ -1,5 +1,4 @@
-from rest_framework.permissions import BasePermission
-
+from rest_framework.permissions import BasePermission, SAFE_METHODS
 
 class IsOwner(BasePermission):
     """
@@ -64,3 +63,27 @@ class IsSchoolStaff(BasePermission):
                 "EMPLOYEE",
             ]
         )
+
+class StudentAccessPermission(BasePermission):
+    """
+    All school staff can view students.
+    Only OWNER and ADMIN can create, update, or delete students.
+    """
+
+    def has_permission(self, request, view):
+        if not request.user.is_authenticated:
+            return False
+
+        if request.method in SAFE_METHODS:
+            return request.user.role in [
+                "OWNER",
+                "ADMIN",
+                "ACCOUNTANT",
+                "TEACHER",
+                "EMPLOYEE",
+            ]
+
+        return request.user.role in [
+            "OWNER",
+            "ADMIN",
+        ]

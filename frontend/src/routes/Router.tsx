@@ -1,100 +1,146 @@
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
-import { lazy } from 'react';
+
+import { lazy, type ReactNode } from 'react';
 import { Navigate, createBrowserRouter } from 'react-router';
 import Loadable from '../layouts/full/shared/loadable/Loadable';
 
-/* ***Layouts**** */
-const FullLayout = Loadable(lazy(() => import('../layouts/full/FullLayout')));
-const BlankLayout = Loadable(lazy(() => import('../layouts/blank/BlankLayout')));
+/* Layouts */
+const FullLayout = Loadable(
+  lazy(() => import('../layouts/full/FullLayout'))
+);
+
+const BlankLayout = Loadable(
+  lazy(() => import('../layouts/blank/BlankLayout'))
+);
+
+/* School ERP pages */
+const ModernDashboard = Loadable(
+  lazy(() => import('../views/dashboards/modern'))
+);
+
+const UserProfilePage = Loadable(
+  lazy(() => import('../views/pages/user-profile'))
+);
+
+const StudentsPage = Loadable(
+  lazy(() => import('../views/students'))
+);
+
+/* Authentication */
+const Login = Loadable(
+  lazy(() => import('../views/auth/auth2/login'))
+);
+
+const Register = Loadable(
+  lazy(() => import('../views/auth/auth2/register'))
+);
+
+const ForgotPassword = Loadable(
+  lazy(() => import('../views/auth/auth2/forgot-password'))
+);
+
+const ErrorPage = Loadable(
+  lazy(() => import('../views/auth/error'))
+);
 
 
-// dashboards
+/* Protect School ERP pages */
+function ProtectedRoute({ children }: { children: ReactNode }) {
+  const accessToken =
+   localStorage.getItem('access_token') ||
+   sessionStorage.getItem('access_token');
 
-const ModernDashboard = Loadable(lazy(() => import('../views/dashboards/modern')));
+  const refreshToken =
+   localStorage.getItem('refresh_token') ||
+   sessionStorage.getItem('refresh_token');
 
-const Error = Loadable(lazy(() => import('../views/auth/error')));
+  if (!accessToken && !refreshToken) {
+    return (
+      <Navigate
+        to="/auth/auth2/login"
+        replace
+      />
+    );
+  }
 
-//apps
-const Blog = Loadable(lazy(() => import('../views/apps/blog/post')));
-const BlogDetail = Loadable(lazy(() => import('../views/apps/blog/detail')));
-const BlogAdd = Loadable(lazy(() => import('../views/apps/blog/create')));
-const BlogEdit = Loadable(lazy(() => import('../views/apps/blog/edit')));
-const BlogTable = Loadable(lazy(() => import('../views/apps/blog/manage-blog')));
+  return <>{children}</>;
+}
 
-const Notes = Loadable(lazy(() => import('../views/apps/notes')));
-
-const Tickets = Loadable(lazy(() => import('../views/apps/tickets')));
-const TicketCreate = Loadable(lazy(() => import('../views/apps/tickets/create')));
-
-// pages
-const TablesPage = Loadable(lazy(() => import('../views/pages/tables')));
-const FormPage = Loadable(lazy(() => import('../views/pages/form')));
-const UserProfilePage = Loadable(lazy(() => import('../views/pages/user-profile')));
-
-//icons
-const SolarIcon = Loadable(lazy(() => import('../views/icons/iconify')));
-
-// authentication
-
-const Login2 = Loadable(lazy(() => import('../views/auth/auth2/login')));
-
-const Register2 = Loadable(lazy(() => import('../views/auth/auth2/register')));
-
-const ForgotPassword2 = Loadable(lazy(() => import('../views/auth/auth2/forgot-password')));
-
-const TwoSteps2 = Loadable(lazy(() => import('../views/auth/auth2/two-steps')));
-
-const Maintainance = Loadable(lazy(() => import('../views/auth/maintenance')));
 
 const Router = [
   {
     path: '/',
-    element: <FullLayout />,
+    element: (
+      <ProtectedRoute>
+        <FullLayout />
+      </ProtectedRoute>
+    ),
+
     children: [
-      { path: '/', element: <ModernDashboard /> },
 
-      { path: '/dashboards/modern', element: <ModernDashboard /> },
 
-      { path: '/apps/blog/post', element: <Blog /> },
-      { path: '/apps/blog/detail/:id', element: <BlogDetail /> },
-      { path: '/apps/blog/create', element: <BlogAdd /> },
-      { path: '/apps/blog/edit', element: <BlogEdit /> },
-      { path: '/apps/blog/manage-blog', element: <BlogTable /> },
 
-      { path: '/apps/notes', element: <Notes /> },
+      {
+        index: true,
+        element: <ModernDashboard />,
+      },
 
-      { path: '/apps/tickets', element: <Tickets /> },
-      { path: '/apps/tickets/create', element: <TicketCreate /> },
+      {
+        path: 'dashboards/modern',
+        element: <ModernDashboard />,
+      },
 
-      { path: '/pages/tables', element: <TablesPage /> },
-      { path: '/pages/form', element: <FormPage /> },
-      { path: '/pages/user-profile', element: <UserProfilePage /> },
+      {
+        path: 'students',
+        element: <StudentsPage />,
+      },
 
-      { path: '/icons/iconify', element: <SolarIcon /> },
+      {
+        path: 'pages/user-profile',
+        element: <UserProfilePage />,
+      },
 
-    
-      { path: '*', element: <Navigate to="/auth/404" /> },
+      {
+        path: '*',
+        element: <Navigate to="/auth/404" replace />,
+      },
     ],
   },
+
   {
     path: '/',
     element: <BlankLayout />,
+
     children: [
-      { path: '/auth/auth2/login', element: <Login2 /> },
+      {
+        path: 'auth/auth2/login',
+        element: <Login />,
+      },
 
-      { path: '/auth/auth2/register', element: <Register2 /> },
+      {
+        path: 'auth/auth2/register',
+        element: <Register />,
+      },
 
-      { path: '/auth/auth2/forgot-password', element: <ForgotPassword2 /> },
+      {
+        path: 'auth/auth2/forgot-password',
+        element: <ForgotPassword />,
+      },
 
-      { path: '/auth/auth2/two-steps', element: <TwoSteps2 /> },
-      { path: '/auth/maintenance', element: <Maintainance /> },
-      { path: '404', element: <Error /> },
-      { path: '/auth/404', element: <Error /> },
-      { path: '*', element: <Navigate to="/auth/404" /> },
+      {
+        path: 'auth/404',
+        element: <ErrorPage />,
+      },
+
+      {
+        path: '*',
+        element: <Navigate to="/auth/404" replace />,
+      },
     ],
   },
 ];
+
 
 const router = createBrowserRouter(Router);
 

@@ -1,14 +1,13 @@
 from rest_framework import generics
 from .models import Student
 from .serializers import StudentSerializer
-from accounts.permissions import IsSchoolStaff
-
+from accounts.permissions import StudentAccessPermission
 
 class StudentListCreateView(generics.ListCreateAPIView):
 
     serializer_class = StudentSerializer
 
-    permission_classes = [IsSchoolStaff]
+    permission_classes = [StudentAccessPermission]
 
 
     def get_queryset(self):
@@ -29,7 +28,7 @@ class StudentDetailView(generics.RetrieveUpdateDestroyAPIView):
 
     serializer_class = StudentSerializer
 
-    permission_classes = [IsSchoolStaff]
+    permission_classes = [StudentAccessPermission]
 
 
     def get_queryset(self):
