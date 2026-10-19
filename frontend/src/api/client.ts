@@ -1,11 +1,13 @@
 const API_URL = "http://127.0.0.1:8000";
 
+
 function getAccessToken() {
   return (
     localStorage.getItem("access_token") ||
     sessionStorage.getItem("access_token")
   );
 }
+
 
 function getRefreshToken() {
   return (
@@ -14,6 +16,7 @@ function getRefreshToken() {
   );
 }
 
+
 function saveAccessToken(token: string) {
   if (localStorage.getItem("refresh_token")) {
     localStorage.setItem("access_token", token);
@@ -21,6 +24,7 @@ function saveAccessToken(token: string) {
     sessionStorage.setItem("access_token", token);
   }
 }
+
 
 async function refreshAccessToken() {
   const refresh = getRefreshToken();
@@ -53,6 +57,7 @@ async function refreshAccessToken() {
   return data.access;
 }
 
+
 export async function apiFetch(
   endpoint: string,
   options: RequestInit = {}
@@ -77,7 +82,7 @@ export async function apiFetch(
     }
   );
 
-  // Access token expired
+
   if (response.status === 401) {
     const newAccessToken =
       await refreshAccessToken();
@@ -99,13 +104,32 @@ export async function apiFetch(
     }
   }
 
+
   if (!response.ok) {
     throw new Error(
       `API request failed: ${response.status}`
     );
   }
 
+
+  // DELETE usually returns 204 No Content
+  if (response.status === 204) {
+    return null;
+  }
+
+
+  const contentType =
+    response.headers.get("content-type");
+
+  if (
+    !contentType?.includes("application/json")
+  ) {
+    return null;
+  }
+
+
   return response.json();
 }
+
 
 export { API_URL };
