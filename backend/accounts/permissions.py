@@ -135,3 +135,28 @@ class ClassroomAccessPermission(BasePermission):
             "OWNER",
             "ADMIN",
         ]
+class AttendanceAccessPermission(BasePermission):
+    """
+    School staff can view attendance.
+    OWNER, ADMIN and TEACHER can create/update attendance.
+    """
+
+    def has_permission(self, request, view):
+
+        if not request.user.is_authenticated:
+            return False
+
+        if request.method in SAFE_METHODS:
+            return request.user.role in [
+                "OWNER",
+                "ADMIN",
+                "ACCOUNTANT",
+                "TEACHER",
+                "EMPLOYEE",
+            ]
+
+        return request.user.role in [
+            "OWNER",
+            "ADMIN",
+            "TEACHER",
+        ]

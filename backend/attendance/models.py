@@ -1,6 +1,6 @@
 from django.db import models
 from students.models import Student
-from employees.models import Employee
+from accounts.models import User
 
 
 class Attendance(models.Model):
@@ -11,13 +11,17 @@ class Attendance(models.Model):
         related_name="attendance_records"
     )
 
-    employee = models.ForeignKey(
-        Employee,
-        on_delete=models.CASCADE,
+
+    marked_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
         related_name="attendance_marked"
     )
 
+
     date = models.DateField()
+
 
     STATUS_CHOICES = [
         ("PRESENT", "Present"),
@@ -25,10 +29,23 @@ class Attendance(models.Model):
         ("LATE", "Late"),
     ]
 
+
     status = models.CharField(
         max_length=20,
         choices=STATUS_CHOICES
     )
+
+
+    created_at = models.DateTimeField(
+        auto_now_add=True
+    )
+
+
+    class Meta:
+        unique_together = (
+            "student",
+            "date",
+        )
 
 
     def __str__(self):

@@ -35,6 +35,10 @@ const ClassesPage = Loadable(
   lazy(() => import('../views/classes'))
 );
 
+const AttendancePage = Loadable(
+  lazy(() => import('../views/attendance'))
+);
+
 /* Authentication */
 const Login = Loadable(
   lazy(() => import('../views/auth/auth2/login'))
@@ -108,7 +112,10 @@ const Router = [
         path: 'classes',
         element: <ClassesPage />,
       },
-
+      {
+        path: 'attendance',
+        element: <AttendancePage />,
+      },
       {
         path: 'teachers',
         element: <TeachersPage />,
