@@ -91,7 +91,6 @@ class TeacherAccessPermission(BasePermission):
      All authenticated school staff can view teachers.
      Only OWNER and ADMIN can create, update, or delete teachers.
      """
-  
      def has_permission(self, request, view):
 
         if not request.user.is_authenticated:

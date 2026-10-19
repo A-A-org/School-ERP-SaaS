@@ -66,7 +66,6 @@ const SidebarContent: MenuItem[] = [
     ],
   },
 
-  
 {
   heading: "PEOPLE",
   items: [
