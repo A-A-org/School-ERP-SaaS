@@ -160,3 +160,22 @@ class AttendanceAccessPermission(BasePermission):
             "ADMIN",
             "TEACHER",
         ]
+
+
+
+class FinanceAccessPermission(BasePermission):
+    """
+    Finance data is available only to:
+    OWNER, ADMIN and ACCOUNTANT.
+    """
+
+    def has_permission(self, request, view):
+
+        if not request.user.is_authenticated:
+            return False
+
+        return request.user.role in [
+            "OWNER",
+            "ADMIN",
+            "ACCOUNTANT",
+        ]

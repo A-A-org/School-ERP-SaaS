@@ -47,7 +47,8 @@ INSTALLED_APPS = [
     'employees',
     'attendance',
     'finance',
-    'audit_logs',
+    "config.audit_logs",
+    'notifications',
 ]
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (

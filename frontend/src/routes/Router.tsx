@@ -31,6 +31,10 @@ const TeachersPage = Loadable(
   lazy(() => import('../views/teachers'))
 );
 
+const FinancePage = Loadable(
+  lazy(() => import('../views/finance'))
+);
+
 const ClassesPage = Loadable(
   lazy(() => import('../views/classes'))
 );
@@ -115,6 +119,11 @@ const Router = [
       {
         path: 'attendance',
         element: <AttendancePage />,
+      },
+
+      {
+        path: 'finance',
+        element: <FinancePage />,
       },
       {
         path: 'teachers',

@@ -40,6 +40,11 @@ urlpatterns = [
     ),
 
     path(
+        "api/finance/",
+        include("finance.urls")
+    ),
+
+    path(
         'api/academics/',
         include('academics.urls')
     ),
