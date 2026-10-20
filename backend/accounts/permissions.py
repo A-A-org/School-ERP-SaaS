@@ -179,3 +179,50 @@ class FinanceAccessPermission(BasePermission):
             "ADMIN",
             "ACCOUNTANT",
         ]
+
+class SchoolAccessPermission(BasePermission):
+    """
+    School permissions:
+
+    OWNER:
+        read / create / update / delete
+
+    ADMIN:
+        read and update own school
+
+    Other school staff:
+        read own school only
+    """
+
+    def has_permission(self, request, view):
+
+        if not request.user.is_authenticated:
+            return False
+
+        role = request.user.role
+
+        if request.method in SAFE_METHODS:
+            return role in [
+                "OWNER",
+                "ADMIN",
+                "ACCOUNTANT",
+                "TEACHER",
+                "EMPLOYEE",
+            ]
+
+        if request.method == "POST":
+            return role == "OWNER"
+
+        if request.method in [
+            "PUT",
+            "PATCH",
+        ]:
+            return role in [
+                "OWNER",
+                "ADMIN",
+            ]
+
+        if request.method == "DELETE":
+            return role == "OWNER"
+
+        return False

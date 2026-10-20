@@ -56,6 +56,13 @@ const ForgotPassword = Loadable(
   lazy(() => import('../views/auth/auth2/forgot-password'))
 );
 
+const SchoolsPage = Loadable(
+  lazy(() => import('../views/schools'))
+);
+const SchoolDetailsPage = Loadable(
+  lazy(() => import('../views/schools/details'))
+);
+
 const ErrorPage = Loadable(
   lazy(() => import('../views/auth/error'))
 );
@@ -134,6 +141,15 @@ const Router = [
         path: 'pages/user-profile',
         element: <UserProfilePage />,
       },
+
+      {
+       path: 'schools',
+       element: <SchoolsPage />,
+      },
+      {
+       path: 'schools/:id',
+       element: <SchoolDetailsPage />,
+       },
 
       {
         path: '*',

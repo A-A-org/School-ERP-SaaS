@@ -1,46 +1,123 @@
 from rest_framework import generics
+from rest_framework.exceptions import ValidationError
+
+from accounts.permissions import SchoolAccessPermission
+
 from .models import School
 from .serializers import SchoolSerializer
-from accounts.permissions import IsSchoolStaff
 
 
-class SchoolListCreateView(generics.ListCreateAPIView):
+class SchoolListCreateView(
+    generics.ListCreateAPIView
+):
 
     serializer_class = SchoolSerializer
 
-    permission_classes = [IsSchoolStaff]
+    permission_classes = [
+        SchoolAccessPermission
+    ]
 
 
     def get_queryset(self):
 
         user = self.request.user
 
-        # Platform Owner can see all schools
-        if user.role == "OWNER":
-            return School.objects.all()
 
-        # Other users can only see their assigned school
+        if user.role == "OWNER":
+
+            return School.objects.all().order_by(
+                "school_name"
+            )
+
+
+        if not user.school_id:
+
+            return School.objects.none()
+
+
         return School.objects.filter(
-            id=user.school.id
+            id=user.school_id
         )
 
 
-class SchoolDetailView(generics.RetrieveUpdateDestroyAPIView):
+class SchoolDetailView(
+    generics.RetrieveUpdateDestroyAPIView
+):
 
     serializer_class = SchoolSerializer
 
-    permission_classes = [IsSchoolStaff]
+    permission_classes = [
+        SchoolAccessPermission
+    ]
 
 
     def get_queryset(self):
 
         user = self.request.user
 
-        # Platform Owner can manage all schools
+
         if user.role == "OWNER":
+
             return School.objects.all()
 
-        # School users can only access their own school
+
+        if not user.school_id:
+
+            return School.objects.none()
+
+
         return School.objects.filter(
-            id=user.school.id
+            id=user.school_id
         )
+
+
+    def perform_destroy(
+        self,
+        instance
+    ):
+
+        from accounts.models import User
+        from academics.models import ClassRoom
+        from employees.models import Employee
+        from students.models import Student
+
+
+        students = Student.objects.filter(
+            school=instance
+        ).count()
+
+
+        users = User.objects.filter(
+            school=instance
+        ).count()
+
+
+        classes = ClassRoom.objects.filter(
+            school=instance
+        ).count()
+
+
+        employees = Employee.objects.filter(
+            school=instance
+        ).count()
+
+
+        if (
+            students > 0
+            or users > 0
+            or classes > 0
+            or employees > 0
+        ):
+
+            raise ValidationError(
+                {
+                    "detail": (
+                        "This school cannot be deleted "
+                        "while it still has students, "
+                        "users, classes or employees."
+                    )
+                }
+            )
+
+
+        instance.delete()
